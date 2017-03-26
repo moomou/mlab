@@ -2,3 +2,4 @@ GloVe
 __*
 checkpoints
 *.h5
+*.pyc
