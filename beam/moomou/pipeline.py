@@ -137,7 +137,7 @@ def run(argv=None):
     pcols = []
     for lang in plang:
         pcols.append(grouped
-            | 'filter by %s' % lang >> beam.Filter(lambda kv: kv[0] == lang)
+            | 'filter by %s' % lang >> beam.Filter(lambda kv, lang: kv[0] == lang, lang)
             | 'clean up %s' % lang >> beam.Map(lambda kv: normalize_text(kv[1]))
             | 'output %s' % lang >> beam.io.WriteToText(known_args.output_prefix + '-' + lang))
 

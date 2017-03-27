@@ -100,6 +100,8 @@ class CustomCommands(setuptools.Command):
 REQUIRED_PACKAGES = [
     'numpy',
     'spacy',
+    'textacy',
+    'ftfy==4.4.2',
 ]
 
 setuptools.setup(
