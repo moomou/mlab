@@ -92,7 +92,9 @@ def normalize_text(texts):
 def merge_pcollection(pipe, prefix, limit):
     ps = []
     for i in range(int(limit)):
-        src = pipe | 'read[%d]' % i >> beam.io.Read(CsvFileSource(os.path.join(prefix + str(i))))
+        str_i = str(i)
+        filename = prefix + str_i if len(str_i) == 2 else prefix + '0' + str_i
+        src = pipe | 'read[%d]' % i >> beam.io.Read(CsvFileSource(filename))
         ps.append(src)
 
     merged = tuple(ps) | 'flatten' >> beam.Flatten()
@@ -145,4 +147,4 @@ def run(argv=None):
 
 if '__main__' == __name__:
     logging.getLogger().setLevel(logging.INFO)
-    run()
+    # run()
