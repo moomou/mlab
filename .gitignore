@@ -3,3 +3,4 @@ __*
 checkpoints
 *.h5
 *.pyc
+*.egg-info

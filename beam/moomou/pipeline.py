@@ -80,7 +80,7 @@ def get_plang_tuple(row):
     if path.endswith('.mm'):
         return ('objC', content)
 
-    return None
+    return (None, None)
 
 def normalize_text(texts):
     docs = []
@@ -131,20 +131,19 @@ def run(argv=None):
             known_args.input_prefix,
             int(known_args.limit))
 
-    grouped = (rows
-        | 'getPlangType' >> beam.Map(get_plang_tuple).with_output_types(beam.typehints.Tuple[str, str])
-        | 'filtering' >> beam.Filter(lambda kv: kv)
-        | 'groupByPlang' >> beam.GroupByKey().with_output_types(beam.typehints.Tuple[str, beam.typehints.Iterable[str]]))
+    filtered = (rows
+        | 'getPlangType' >> beam.Map(get_plang_tuple)
+        | 'filtering' >> beam.Filter(lambda kv: kv and len(kv) == 2 and kv[0] and kv[1]))
 
     pcols = []
     for lang in plang:
-        pcols.append(grouped
+        pcols.append(filtered
             | 'filter by %s' % lang >> beam.Filter(lambda kv, lang: kv[0] == lang, lang)
             | 'clean up %s' % lang >> beam.Map(lambda kv: normalize_text(kv[1]))
             | 'output %s' % lang >> beam.io.WriteToText(known_args.output_prefix + '-' + lang))
 
-    p.run().wait_until_finish()
+    p.run() # .wait_until_finish()
 
 if '__main__' == __name__:
     logging.getLogger().setLevel(logging.INFO)
-    # run()
+    run()

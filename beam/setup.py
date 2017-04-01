@@ -26,10 +26,11 @@ when running the workflow for remote execution.
 """
 
 from distutils.command.build import build as _build
+from setuptools.command.install import _install
+
 import subprocess
 
 import setuptools
-
 
 # This class handles the pip install mechanism.
 class build(_build):  # pylint: disable=invalid-name
@@ -63,8 +64,11 @@ class build(_build):  # pylint: disable=invalid-name
 # The output of custom commands (including failures) will be logged in the
 # worker-startup log.
 CUSTOM_COMMANDS = [
-    ['echo', 'Custom command worked!']]
-
+    ['apt-get', 'update'],
+    ['apt-get', '--assume-yes', 'install', 'build-essential', 'libssl-dev', 'libffi-dev', 'python-dev'],
+    ['apt-get', '--assume-yes', 'install', 'python-software-properties'],
+    ['apt-get', '--assume-yes', 'install', 'git'],
+]
 
 class CustomCommands(setuptools.Command):
   """A setuptools Command class able to run arbitrary commands."""
@@ -85,8 +89,7 @@ class CustomCommands(setuptools.Command):
     stdout_data, _ = p.communicate()
     print 'Command output: %s' % stdout_data
     if p.returncode != 0:
-      raise RuntimeError(
-          'Command %s failed: exit code: %s' % (command_list, p.returncode))
+      raise RuntimeError( 'Command %s failed: exit code: %s' % (command_list, p.returncode))
 
   def run(self):
     for command in CUSTOM_COMMANDS:
@@ -100,13 +103,11 @@ class CustomCommands(setuptools.Command):
 REQUIRED_PACKAGES = [
     'numpy',
     'spacy',
-    'textacy',
-    'ftfy==4.4.2',
 ]
 
 setuptools.setup(
     name='mlab',
-    version='0.0.3',
+    version='0.0.5',
     description='mlab workflow package.',
     install_requires=REQUIRED_PACKAGES,
     packages=setuptools.find_packages(),
@@ -114,5 +115,5 @@ setuptools.setup(
         # Command class instantiated and run during pip install scenarios.
         'build': build,
         'CustomCommands': CustomCommands,
-        }
-    )
+    }
+)
