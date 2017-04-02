@@ -12,9 +12,7 @@ WS_RE = re.compile(' ')
 
 class MetaChar():
     # Using special, one char symbol
-    NUM = 'ø'
     NEW_LINE = 'π'
-    SPACE = '†'
 
 def replace_re_with(text, regex, replacement=' '):
     return re.sub(regex, replacement, text)
@@ -26,16 +24,11 @@ TXT_PIPE_STEPS = [
     (normalize_whitespace, None),
     (replace_re_with, [ COMMENT_RE, '' ]),
     (normalize_whitespace, None),
-    (replace_re_with, [ NUM_RE, MetaChar.NUM.decode('utf-8') ]),
-    (normalize_whitespace, None),
     (replace_re_with, [ NEW_LINE_RE, MetaChar.NEW_LINE.decode('utf-8') ]),
 ]
 
 def text_pipe(raw_txt, pipe=TXT_PIPE_STEPS):
-    if isinstance(raw_txt, str):
-        txt = raw_txt.decode('utf-8')
-    else:
-        txt = raw_txt
+    txt = raw_txt.decode('utf-8')
 
     for func, params in pipe:
         if params is not None:

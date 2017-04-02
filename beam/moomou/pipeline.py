@@ -89,13 +89,19 @@ def normalize_text(texts):
 
     return '\n'.join(docs)
 
-def merge_pcollection(pipe, prefix, limit):
+def filter_merge_pcollection(pipe, prefix, limit):
     ps = []
     for i in range(int(limit)):
         str_i = str(i)
         filename = prefix + str_i if len(str_i) == 2 else prefix + '0' + str_i
-        src = pipe | 'read[%d]' % i >> beam.io.Read(CsvFileSource(filename))
-        ps.append(src)
+
+        filtered_rows = (pipe
+            | 'read[%d]' % i >> beam.io.Read(CsvFileSource(filename))
+            | 'getPlangType[%d]' % i >> beam.Map(get_plang_tuple)
+            | 'filtering[%d]' % i >> beam.Filter(lambda kv: kv and len(kv) == 2 and kv[0] and kv[1])
+            | 'groupByPlang[%d]' % i >> beam.GroupByKey().with_output_types(beam.typehints.Tuple[str, beam.typehints.Iterable[str]]))
+
+        ps.append(filtered_rows)
 
     merged = tuple(ps) | 'flatten' >> beam.Flatten()
     return merged
@@ -127,17 +133,13 @@ def run(argv=None):
     p = beam.Pipeline(options=pipeline_options)
 
     # Read the text file[pattern] into a PCollection.
-    rows = merge_pcollection(p,
-            known_args.input_prefix,
-            int(known_args.limit))
-
-    filtered = (rows
-        | 'getPlangType' >> beam.Map(get_plang_tuple)
-        | 'filtering' >> beam.Filter(lambda kv: kv and len(kv) == 2 and kv[0] and kv[1]))
+    rows = filter_merge_pcollection(p,
+        known_args.input_prefix,
+        int(known_args.limit))
 
     pcols = []
     for lang in plang:
-        pcols.append(filtered
+        pcols.append(rows
             | 'filter by %s' % lang >> beam.Filter(lambda kv, lang: kv[0] == lang, lang)
             | 'clean up %s' % lang >> beam.Map(lambda kv: normalize_text(kv[1]))
             | 'output %s' % lang >> beam.io.WriteToText(known_args.output_prefix + '-' + lang))
