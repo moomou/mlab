@@ -1,6 +1,9 @@
 GloVe
 __*
+**/checkpoints
 checkpoints
 *.h5
 *.pyc
 *.egg-info
+x_*
+y_*

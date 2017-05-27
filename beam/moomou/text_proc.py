@@ -10,6 +10,8 @@ LINEBREAK_REGEX = re.compile(r'((\r\n)|[\n\v])+')
 NEW_LINE_RE = re.compile('\n')
 WS_RE = re.compile(' ')
 
+ALLOWED_CHAR = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-,;.!?:"\'/\|_@#$%^&*~+-=<>()[]{} '
+
 class MetaChar():
     # Using special, one char symbol
     NEW_LINE = 'π'
