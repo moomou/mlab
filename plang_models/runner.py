@@ -27,9 +27,9 @@ if __name__ == '__main__':
     model.compile(loss='categorical_crossentropy',
                   optimizer='RMSprop', metrics=['accuracy'])
 
-    file_name = 'plang'
+    file_name = 'plan4.5'
     check_cb = keras.callbacks.ModelCheckpoint(
-        '/home/moomou/dev/checkpoint/' + file_name +
+        '/home/moomou/dev/mlab/plang_models/checkpoints/' + file_name +
         '.e{epoch:02d}-vl{val_loss:.2f}.hdf5',
         monitor='val_loss',
         verbose=0,
@@ -48,7 +48,7 @@ if __name__ == '__main__':
         X_train,
         y_train,
         validation_data=(X_test, y_test),
-        batch_size=128, epochs=40,
+        batch_size=256, epochs=60,
         shuffle=True,
         callbacks=[history, check_cb])
 

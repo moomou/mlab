@@ -22,40 +22,37 @@ import tensorflow as tf
 import keras.callbacks
 
 from util import DEFAULT_CHAR_SET
+from libs.attention_wt_context import AttentionWithContext
 
-CHAR_MAX_LEN = 256
+CHAR_MAX_LEN = 512
 CHAR_SET_SIZE = len(DEFAULT_CHAR_SET)
 
 
-def conv_pool(model, filters=64, kernel_size=7, pool=False):
+def conv_pool(model, filters=64, kernel_size=7, pool=True):
     model.add(Conv1D(filters=filters, kernel_size=kernel_size,
                      strides=1, padding='causal'))
     model.add(keras.layers.advanced_activations.ELU())
     model.add(BatchNormalization())
 
-    if pool:
-        model.add(MaxPooling1D(pool_size=3))
-
 
 def create_model(nb_classes):
     model = Sequential()
-
     model.add(Embedding(CHAR_SET_SIZE, 64, input_length=CHAR_MAX_LEN))
 
     conv_pool(model, filters=128)
     conv_pool(model, filters=128)
     conv_pool(model, kernel_size=3)
-    conv_pool(model, kernel_size=3, pool=True)
-    conv_pool(model, kernel_size=3, pool=True)
-    conv_pool(model, kernel_size=3, pool=True)
+    conv_pool(model, kernel_size=3)
+    conv_pool(model, kernel_size=3)
+    conv_pool(model, kernel_size=3)
 
-    model.add(BatchNormalization())
-    model.add(GlobalMaxPool1D())
+    model.add(LSTM(128, return_sequences=True))
+    # model.add(AttentionWithContext())
 
     model.add(Dense(CHAR_MAX_LEN * 2, activation='relu'))
     model.add(Dropout(0.5))
     model.add(Dense(CHAR_MAX_LEN * 2, activation='relu'))
-    model.add(Dropout(0.5))
+
     model.add(Dense(nb_classes, activation='softmax'))
 
     return model
