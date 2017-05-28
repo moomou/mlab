@@ -2,7 +2,7 @@
 import keras
 from keras import optimizers
 
-from data3 import (
+from data4 import (
     load_dataset,
     langs,
 )
@@ -28,11 +28,14 @@ if __name__ == '__main__':
                   optimizer='RMSprop', metrics=['accuracy'])
 
     file_name = 'plang'
-    check_cb = keras.callbacks.ModelCheckpoint('/home/moomou/dev/checkpoint/' + file_name + '.e{epoch:02d}-vl{val_loss:.2f}.hdf5',
-                                               monitor='val_loss',
-                                               verbose=0,
-                                               save_best_only=True,
-                                               mode='min')
+    check_cb = keras.callbacks.ModelCheckpoint(
+        '/home/moomou/dev/checkpoint/' + file_name +
+        '.e{epoch:02d}-vl{val_loss:.2f}.hdf5',
+        monitor='val_loss',
+        verbose=0,
+        save_best_only=True,
+        mode='min'
+    )
 
     early_stop_cb = keras.callbacks.EarlyStopping(
         mode='auto',

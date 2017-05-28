@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 import random
 import re
@@ -62,11 +63,11 @@ def _reservoir_sampling(items, k):
 
 def sample_k_line_from_file(f, sample_count=1, snippet_mode=False):
     sampled = _reservoir_sampling(f, sample_count)
-    if snippet_mode:
+    if not snippet_mode:
         return sampled
 
     snippets = []
-    for line in snippets:
+    for line in sampled:
         snippets.extend(break_line_2_snippets(line))
 
     return snippets
@@ -112,3 +113,8 @@ class LossHistory(keras.callbacks.Callback):
 
     def on_batch_end(self, batch, logs={}):
         self.losses.append(logs.get('loss'))
+
+
+if __name__ == '__main__':
+    lorem = 'Ipsum optio dolore vero in nihil aliquam libero aliquam voluptas! Cumque sunt tenetur maiores expedita vel repellendus optio nobis possimus exercitationem atque quis? Illo tempora aperiam nisi quasi accusantium labore.Elit deserunt ea nostrum molestias maxime veniam laboriosam. Tempore neque ab assumenda impedit recusandae vitae alias deleniti. Mollitia magni reiciendis sunt assumenda laboriosam. Possimus adipisicing dolorem suscipit voluptas ut! Eveniet?'
+    print(break_line_2_snippets(lorem))

@@ -12,7 +12,6 @@ from util import (
     allow_only_char,
     get_raw_data_filename,
     get_data_filename,
-    remove_hash_comment,
     sample_k_line_from_file,
 )
 
@@ -43,7 +42,7 @@ def build_dataset(count, snippet_mode=False, k=100):
     print('Generated %d samples' % len(cleaned))
 
 
-def load_dataset(max_len, snippet_mode=False, k=1000):
+def load_dataset(max_len, snippet_mode=False, k=2000):
     x_fname = get_data_filename('x', k, snippet_mode)
     y_fname = get_data_filename('y', k, snippet_mode)
 
@@ -58,7 +57,7 @@ def load_dataset(max_len, snippet_mode=False, k=1000):
             for j, char in enumerate(doc[-max_len:]):
                 char = char.lower()
                 if char == '\n':
-                    <char > < / char >= NEWLINE_SYMBOL
+                    char = NEWLINE_SYMBOL
                 char_ind = DEFAULT_CHAR_IND.get(char, -1)
                 X[i, j] = char_ind
 
@@ -95,5 +94,5 @@ def load_dataset(max_len, snippet_mode=False, k=1000):
 
 
 if __name__ == '__main__':
-    # build_dataset(10, k=2000, snippet_mode=True)
-    build_dataset(10, k=2000)
+    build_dataset(10, k=2000, snippet_mode=True)
+    # build_dataset(10, k=2000)
