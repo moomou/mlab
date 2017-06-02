@@ -69,14 +69,18 @@ class AttentionWithContext(Layer):
         return None
 
     def call(self, x, mask=None):
+        # print('x:', x.shape)
+        # print('W:', self.W.shape)
         uit = K.dot(x, self.W)
 
         if self.bias:
             uit += self.b
 
+        # print('uit:', uit.shape)
         uit = K.tanh(uit)
 
         ait = K.dot(uit, self.u)
+        # print('ait:', ait.shape)
         a = K.exp(ait)
 
         # apply mask after the exp. will be re-normalized next
@@ -100,5 +104,3 @@ class AttentionWithContext(Layer):
         """Shape transformation logic so Keras can infer output shape
         """
         return (input_shape[0], input_shape[-1])
-
-

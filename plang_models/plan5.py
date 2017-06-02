@@ -24,15 +24,18 @@ import keras.callbacks
 from util import DEFAULT_CHAR_SET
 from libs.attention_wt_context import AttentionWithContext
 
-CHAR_MAX_LEN = 512
+CHAR_MAX_LEN = 256
 CHAR_SET_SIZE = len(DEFAULT_CHAR_SET)
 
 
-def conv_pool(model, filters=64, kernel_size=7, pool=True):
+def conv_pool(model, filters=64, kernel_size=7, pool=False):
     model.add(Conv1D(filters=filters, kernel_size=kernel_size,
                      strides=1, padding='causal'))
     model.add(keras.layers.advanced_activations.ELU())
     model.add(BatchNormalization())
+
+    if pool:
+        model.add(MaxPooling1D(pool_size=3))
 
 
 def create_model(nb_classes):
@@ -42,11 +45,12 @@ def create_model(nb_classes):
     conv_pool(model, filters=128)
     conv_pool(model, filters=128)
     conv_pool(model, kernel_size=3)
-    conv_pool(model, kernel_size=3)
-    conv_pool(model, kernel_size=3)
-    conv_pool(model, kernel_size=3)
+    conv_pool(model, kernel_size=3, pool=True)
+    conv_pool(model, kernel_size=3, pool=True)
+    conv_pool(model, kernel_size=3, pool=True)
 
-    model.add(LSTM(128, return_sequences=True))
+    model.add(BatchNormalization())
+    model.add(LSTM(128))
     # model.add(AttentionWithContext())
 
     model.add(Dense(CHAR_MAX_LEN * 2, activation='relu'))

@@ -6,7 +6,7 @@ from data4 import (
     load_dataset,
     langs,
 )
-from plan4 import (
+from plan5 import (
     CHAR_MAX_LEN,
     create_model,
 )
@@ -27,14 +27,17 @@ if __name__ == '__main__':
     model.compile(loss='categorical_crossentropy',
                   optimizer='RMSprop', metrics=['accuracy'])
 
-    file_name = 'plan4.5'
+    with open('model.json', 'w') as f:
+        f.write(model.to_json())
+
+    file_name = 'plan5'
     check_cb = keras.callbacks.ModelCheckpoint(
         '/home/moomou/dev/mlab/plang_models/checkpoints/' + file_name +
-        '.e{epoch:02d}-vl{val_loss:.2f}.hdf5',
-        monitor='val_loss',
+        '.e{epoch:03d}-acc{val_acc:.2f}.hdf5',
+        monitor='val_acc',
         verbose=0,
         save_best_only=True,
-        mode='min'
+        mode='max'
     )
 
     early_stop_cb = keras.callbacks.EarlyStopping(
@@ -48,7 +51,7 @@ if __name__ == '__main__':
         X_train,
         y_train,
         validation_data=(X_test, y_test),
-        batch_size=256, epochs=60,
+        batch_size=512, epochs=512,
         shuffle=True,
         callbacks=[history, check_cb])
 

@@ -1,7 +1,6 @@
 from keras.layers.core import Layer
-from keras import initializations, regularizers, constraints
+from keras import initializers, regularizers, constraints
 from keras import backend as K
-from keras import initializers
 
 
 class AttentionWithContext(Layer):
