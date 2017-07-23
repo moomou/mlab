@@ -1,11 +1,15 @@
 #!/usr/bin/env python
+from keras.models import model_from_json
+import glob
+import os
+
 from data4 import (
     load_dataset,
-    langs,
+    convert_to_k_snippet,
 )
-from plan4 import (
+from plan6 import (
     CHAR_MAX_LEN,
-    create_model,
+    AttentionWithContext,
 )
 
 if __name__ == '__main__':
@@ -14,17 +18,32 @@ if __name__ == '__main__':
         y_train,
         X_test,
         y_test
-    ) = load_dataset(CHAR_MAX_LEN, k=2000, snippet_mode=True)
+    ) = load_dataset(max_len=CHAR_MAX_LEN, k=1, test_mode=True)
 
-    model = create_model(len(langs))
-    model.summary()
+    # X_test, y_test = convert_to_k_snippet(X_test, y_test)
+    for f in glob.glob('./model_json/*'):
+        model = None
 
-    model.load_weights('./checkpoints/plan4.e24-vl0.19.hdf5')
+        with open(f) as config:
+            model = model_from_json(config.read(), {
+                'AttentionWithContext': AttentionWithContext,
+            })
 
-    model.compile(loss='categorical_crossentropy',
-                  optimizer='RMSprop', metrics=['accuracy'])
+        model.summary()
 
-    # estimate accuracy on whole dataset using loaded weights
-    scores = model.evaluate(X_test, y_test, verbose=0)
-    print('Scores::', scores)
-    print("%s: %.2f%%" % (model.metrics_names[1], scores[1] * 100))
+        base = os.path.basename(f)
+        prefix = base[len('model_'):-len('.json')]
+        candidates = glob.glob('./checkpoints/%s*' % prefix)
+        print('Candidates:: ', prefix, candidates)
+        assert len(candidates) == 1, 'Too many weight for %s' % base
+
+        model.load_weights(candidates[0])
+        model.compile(loss='categorical_crossentropy',
+                      optimizer='RMSprop', metrics=['accuracy'])
+
+        print('Variant::', f)
+
+        # estimate accuracy on whole dataset using loaded weights
+        scores = model.evaluate(X_train, y_train, verbose=0)
+        print('Scores::', scores)
+        print("%s: %.3f%%" % (model.metrics_names[1], scores[1] * 100))

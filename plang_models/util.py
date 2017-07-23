@@ -1,17 +1,19 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
+import numpy as np
+
 import random
 import re
-
-import keras
 
 NEWLINE_SYMBOL = 'π'
 UNKNOWN_SYMBOL = '÷'
 # 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
-DEFAULT_CHAR_LIST = 'abcdefghijklmnopqrstuvwxyz0123456789-,;.!?:\'"/\|_@#$%^&*~`+-=<>()[]{} π'
+DEFAULT_CHAR_LIST = 'abcdefghijklmnopqrstuvwxyz0123456789,;.!?:\'"/\\|_@#$%^&*~`+-=<>()[]{} π'
 DEFAULT_CHAR_SET = set(DEFAULT_CHAR_LIST)
+assert len(DEFAULT_CHAR_SET) == len(DEFAULT_CHAR_LIST)
 DEFAULT_CHAR_IND = {char: index for index,
                     char in enumerate(DEFAULT_CHAR_LIST)}
+WS_IND = DEFAULT_CHAR_IND[' ']
 
 REMOVE_HASH_COMMENT = re.compile('.*#(.*)π')
 
@@ -37,7 +39,7 @@ LANGS = [
     'swift',
 ]
 
-SNIPPET_LEN = 100
+SNIPPET_LEN = 256
 
 
 def _reservoir_sampling(items, k):
@@ -49,16 +51,16 @@ def _reservoir_sampling(items, k):
     http://blog.cloudera.com/blog/2013/04/hadoop-stratified-randosampling-algorithm/
     http://www.geeksforgeeks.org/reservoir-sampling/
     '''
-    sample = []
+    samples = []
     for i, content in enumerate(items):
-        if i <= k:
-            sample.append(content)
+        if i < k:
+            samples.append(content)
         else:
             j = random.randrange(1, i + 1)
-            if j <= k:
-                sample[j] = content
+            if j < k:
+                samples[j] = content
 
-    return sample
+    return samples
 
 
 def sample_k_line_from_file(f, sample_count=1, snippet_mode=False):
@@ -76,9 +78,15 @@ def sample_k_line_from_file(f, sample_count=1, snippet_mode=False):
 def break_line_2_snippets(line):
     snippets = []
     for i in range(0, len(line), SNIPPET_LEN):
-        snippets.append(line[i: i + SNIPPET_LEN])
+        snippet = line[i: i + SNIPPET_LEN]
+        snippets.append(snippet)
 
     return snippets
+
+
+def sample_k_snippet_from_line(line, k=1):
+    snippets = break_line_2_snippets(line)
+    return _reservoir_sampling(snippets, k)
 
 
 def allow_only_char(txt, char_set=DEFAULT_CHAR_SET):
@@ -107,14 +115,23 @@ def remove_hash_comment(txt):
     return re.sub(REMOVE_HASH_COMMENT, '', txt)
 
 
-class LossHistory(keras.callbacks.Callback):
-    def on_train_begin(self, logs={}):
-        self.losses = []
+def doc_to_word_index(doc, max_len=None):
+    if max_len is None:
+        max_len = len(doc)
 
-    def on_batch_end(self, batch, logs={}):
-        self.losses.append(logs.get('loss'))
+    doc_word_indices = np.zeros(max_len)
+    doc_word_indices[:] = WS_IND
+
+    for j, char in enumerate(doc[-max_len:]):
+        char = char.lower()
+        if char == '\n':
+            char = NEWLINE_SYMBOL
+        char_ind = DEFAULT_CHAR_IND.get(char, WS_IND)
+        doc_word_indices[j] = char_ind
+
+    return doc_word_indices
 
 
 if __name__ == '__main__':
     lorem = 'Ipsum optio dolore vero in nihil aliquam libero aliquam voluptas! Cumque sunt tenetur maiores expedita vel repellendus optio nobis possimus exercitationem atque quis? Illo tempora aperiam nisi quasi accusantium labore.Elit deserunt ea nostrum molestias maxime veniam laboriosam. Tempore neque ab assumenda impedit recusandae vitae alias deleniti. Mollitia magni reiciendis sunt assumenda laboriosam. Possimus adipisicing dolorem suscipit voluptas ut! Eveniet?'
-    print(break_line_2_snippets(lorem))
+    print(len(sample_k_snippet_from_line(lorem)))

@@ -7,3 +7,5 @@ checkpoints
 *.egg-info
 x_*
 y_*
+*.h5
+*.hdf5

@@ -6,11 +6,12 @@ from data4 import (
     load_dataset,
     langs,
 )
-from plan5 import (
+from plan6 import (
+    NAME,
     CHAR_MAX_LEN,
     create_model,
 )
-from util import LossHistory
+from keras_util import LossHistory
 
 if __name__ == '__main__':
     (
@@ -18,7 +19,7 @@ if __name__ == '__main__':
         y_train,
         X_test,
         y_test
-    ) = load_dataset(CHAR_MAX_LEN)
+    ) = load_dataset(max_len=CHAR_MAX_LEN, k=2000)
 
     model = create_model(len(langs))
     model.summary()
@@ -27,13 +28,12 @@ if __name__ == '__main__':
     model.compile(loss='categorical_crossentropy',
                   optimizer='RMSprop', metrics=['accuracy'])
 
-    with open('model.json', 'w') as f:
+    with open('model_%s.json' % NAME, 'w') as f:
         f.write(model.to_json())
 
-    file_name = 'plan5'
     check_cb = keras.callbacks.ModelCheckpoint(
-        '/home/moomou/dev/mlab/plang_models/checkpoints/' + file_name +
-        '.e{epoch:03d}-acc{val_acc:.2f}.hdf5',
+        '/home/moomou/dev/mlab/plang_models/checkpoints/' + NAME +
+        '.e{epoch:03d}-acc{val_acc:.3f}.hdf5',
         monitor='val_acc',
         verbose=0,
         save_best_only=True,
@@ -47,11 +47,12 @@ if __name__ == '__main__':
         verbose=0)
 
     history = LossHistory()
+
     model.fit(
         X_train,
         y_train,
         validation_data=(X_test, y_test),
-        batch_size=512, epochs=512,
+        batch_size=256, epochs=256,
         shuffle=True,
         callbacks=[history, check_cb])
 
