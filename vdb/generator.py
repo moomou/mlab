@@ -3,6 +3,7 @@ import threading
 
 import numpy as np
 import h5py
+import glog
 
 
 class threadsafe_iter:
@@ -93,7 +94,10 @@ def _generate_all_frame_by_key(keys,
                                lengths,
                                frame_length,
                                frame_stride,
-                               per_key_limit=None):
+                               per_key_limit=None,
+                               shuffle=True):
+    glog.debug('FrameLen:: %s' % frame_length)
+    glog.debug('FrameStride:: %s' % frame_stride)
     key_frames = []
 
     for key in keys:
@@ -101,9 +105,12 @@ def _generate_all_frame_by_key(keys,
         for start in range(0, length - frame_length - 1, frame_stride):
             key_frames.append((key, start, start + frame_length))
 
-    np.random.shuffle(key_frames)
-    print('Key len::', len(keys))
-    print('Key frame len::', len(key_frames))
+    if shuffle:
+        np.random.shuffle(key_frames)
+
+    glog.debug('Key len:: %s' % len(keys))
+    glog.debug('Key frame len:: %s' % len(key_frames))
+    glog.debug('Key frame samples:: %s' % key_frames[:5])
     return key_frames
 
 
@@ -139,7 +146,10 @@ def speaker_batch_generator(h5ref,
                             frame_length,
                             frame_stride,
                             batch_size,
-                            one_hotify=True):
+                            one_hotify=True,
+                            mfcc=False):
+
+    glog.debug('Total speaker:: %s' % nb_speaker)
 
     lengths = {key: h5ref[key].shape[0] for key in keys}
     key_frames = _generate_all_frame_by_key(keys, lengths, frame_length,
@@ -159,7 +169,7 @@ def speaker_batch_generator(h5ref,
             np.random.shuffle(key_frames)
             counter = 0
 
-        yield one_hot(np.array(batch_inputs, dtype='uint8')), \
+        yield np.array(batch_inputs), \
             one_hot(np.array(batch_outputs, dtype='uint8'), count=nb_speaker),
 
 
@@ -184,14 +194,14 @@ def wav_batch_sample_sizes(h5ref, keys, frame_length, frame_stride,
     return len(key_frames)
 
 
-def test_wav_generate():
+def _test_wav_generate():
     with h5py.File('timit_TEST.h5') as h5:
         keys = [k for k in h5.keys() if not k.endswith('total')]
         gen = wav_random_batch_generator(h5, keys, 1024, 16, 256)
         sample = next(gen)
-        print(sample[0].shape, sample[1].shape)
+        glog.info(sample[0].shape, sample[1].shape)
 
 
 if __name__ == '__main__':
     import fire
-    fire.Fire({'test_wav_gen': test_wav_generate})
+    fire.Fire({'test_wav_gen': _test_wav_generate})

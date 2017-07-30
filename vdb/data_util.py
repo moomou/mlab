@@ -1,11 +1,41 @@
 #!/usr/bin/env python
 import os
+from enum import Enum
 
 import scipy.io.wavfile as wavfile
 import librosa
 import numpy as np
+import glog
+from python_speech_features import mfcc, fbank, logfbank
 
-from constant import VCTK_ROOT, SAMPLE_RATE, MAX_FREQ
+from constant import VCTK_ROOT, SAMPLE_RATE, MFCC_NB_COEFFICIENTS
+
+MFCC_CONFIG = {
+    'numcep': MFCC_NB_COEFFICIENTS,
+}
+
+FBANK_CONFIG = {
+    'nfilt': 40,
+}
+
+DATA_VERSION = 3
+
+
+class DataMode(Enum):
+    mfcc = 1
+    fbank = 2
+    raw = 3
+
+
+def timit_h5_fname(dataset, mode):
+    fname = 'timit%d_%s_%s_@%s.h5' % (DATA_VERSION, dataset.lower(), mode.name,
+                                      SAMPLE_RATE, )
+    return fname
+
+
+def vctk_h5_fname(mode):
+    fname = 'vctk%d_%s_%s_@%s.h5' % (DATA_VERSION, mode.name, SAMPLE_RATE, )
+    return fname
 
 
 def ulaw(x, u=255):
@@ -40,16 +70,19 @@ def float_to_uint8(x):
     return x
 
 
-def process_wav(filename, sr=SAMPLE_RATE, use_ulaw=True, mfcc=False):
+def process_wav(filename, sr=SAMPLE_RATE, mode=DataMode.raw):
     data, sr = librosa.core.load(filename, sr=sr)
 
-    assert not (mfcc and use_ulaw), 'Cannot use both ulaw and mfcc'
-
-    if use_ulaw:
+    if mode == DataMode.mfcc:
+        data = mfcc(data, sr, **MFCC_CONFIG)
+        glog.debug('mfcc:: %s, %s', data.shape, data)
+    elif mode == DataMode.fbank:
+        data = logfbank(data, sr, **FBANK_CONFIG)
+        glog.debug('fbank:: %s, %s', data.shape, data)
+    else:
         data = ulaw(data)
         data = float_to_uint8(data)
-    elif mfcc:
-        data = librosa.feature.mfcc(data, sr, n_mfcc=13, fmax=MAX_FREQ)
+        glog.debug('raw with ulaw:: %s, %s', data.shape, data)
 
     return data
 
@@ -90,6 +123,8 @@ if __name__ == '__main__':
     import fire
     sample_file = os.path.join(VCTK_ROOT, 'p225', 'p225_001.wav')
     fire.Fire({
-        't2': lambda: _process_wav(sample_file),
-        't': lambda: print('final::', process_wav(sample_file)[:100]),
+        't2':
+        lambda: _process_wav(sample_file),
+        't':
+        lambda: process_wav(sample_file, mode=DataMode.mfcc).all() and 'fin',
     })

@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import os
 
+import glog
 from keras.models import (
     Model,
     load_model, )
@@ -10,8 +11,11 @@ from keras.layers import Embedding, Flatten, BatchNormalization
 from keras import regularizers as reg
 from keras.layers import (
     Conv1D,
+    Conv2D,
     MaxPooling1D,
+    MaxPooling2D,
     GlobalMaxPooling1D,
+    GlobalAveragePooling1D,
     Input, )
 
 from constant import SAMPLE_RATE
@@ -33,14 +37,13 @@ def _load_checkoint(model, checkpoints_dir):
         checkpoints_dir)
     model.epoch_num = int(last_checkpoint[11:16]) + 1
 
-    print('Loading model from epoch: %d' % model.epoch_num)
+    glog.info('Loading model from epoch: %d' % model.epoch_num)
     model.load_weights(last_checkpoint_path)
 
 
 def compute_receptive_field(dilation_depth, nb_stack, sr=SAMPLE_RATE):
     receptive_field = nb_stack * (2**dilation_depth * 2) - (nb_stack - 1)
     receptive_field_ms = (receptive_field * 1000) / sr
-
     return receptive_field, receptive_field_ms
 
 
@@ -89,14 +92,14 @@ def build_model(frame_length,
         activity_regularizer=reg.l2(l2))(out)
 
     out = Conv1D(3, 3, padding='same', activity_regularizer=reg.l2(l2))(out)
-    out = Dense(2048, name='embedding')(out)
+    out = GlobalAveragePooling1D()(out)
+    out = Dense(2**10, name='embedding')(out)
     out = Dense(nb_y_size, activation='softmax')(out)
 
     model = Model(inputs=start_tensor, outputs=out)
 
     field_width, field_ms = compute_receptive_field(dilation_depth, nb_stack)
-    print('model with width=%s and width_ms=%s' % (field_width, field_ms))
-
+    glog.info('model with width=%s and width_ms=%s' % (field_width, field_ms))
     model.summary()
 
     if checkpoints_dir:
@@ -147,7 +150,7 @@ def build_model2(frame_length,
     model = Model(inputs=start_tensor, outputs=out)
 
     field_width, field_ms = compute_receptive_field(dilation_depth, nb_stack)
-    print('model with width=%s and width_ms=%s' % (field_width, field_ms))
+    glog.info('model with width=%s and width_ms=%s' % (field_width, field_ms))
 
     model.summary()
 
@@ -159,22 +162,53 @@ def build_model2(frame_length,
     return model
 
 
-def extend_model(model, output_size):
-    embedding_layer = model.layers[-1].output
-    # out = GRU(64)(embedding_layer)
-    out = GlobalMaxPooling1D()(embedding_layer)
-    out = Dense(output_size, activation='softmax', name='output')(out)
+def build_model3(input_shape, nb_output_bin, checkpoints_dir=None):
+    '''
+    ref: Deep Speaker Feature Learning for Text-independent Speaker Verification
+    '''
+    shape = list(input_shape)
+    glog.info('Shape:: %s', shape)
+    start = Input(shape=shape, name='start')
+    out = Conv2D(128, (4, 3))(start)
+    # shape = (6, 24)
+    out = MaxPooling2D((2, 2))(out)
+    # shape = (3, 12)
+    out = Conv2D(256, (2, 5))(out)
+    # shape = (2, 8)
+    out = MaxPooling2D((1, 2))(out)
+    # shape = (2, 4)
+    # bottleneck
+    out = Dense(512, name='bottleneck')(out)
 
-    ext_model = Model(inputs=model.input, outputs=out)
+    dilation_depth = 3
+    for i in range(dilation_depth):
+        out = Conv2D(
+            256, (1, 1),
+            dilation_rate=(2**i, 1),
+            name='relu_dilation_%s_%s' % ((2**i), 1),
+            padding='same',
+            activation='relu')(out)
 
-    ext_model.epoch_num = 0
-    ext_model.summary()
-    return ext_model
+    # D vector
+    out = Dense(400, name='d_vector')(out)
+    out = Dense(nb_output_bin, activation='softmax')(out)
+
+    model = Model(inputs=start, outputs=out)
+    field_width, field_ms = compute_receptive_field(dilation_depth, 1)
+    glog.info('model with width=%s and width_ms=%s' % (field_width, field_ms))
+    model.summary()
+
+    if checkpoints_dir:
+        _load_checkoint(model, checkpoints_dir)
+    else:
+        model.epoch_num = 0
+
+    return model
 
 
 if __name__ == '__main__':
     import fire
     fire.Fire({
-        'model': lambda: build_model(1024, 2, 9, 3),
+        'm': lambda: build_model3((9, 26, 1), 100),
         'crf': compute_receptive_field,
     })

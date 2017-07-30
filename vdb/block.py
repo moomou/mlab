@@ -31,6 +31,7 @@ def wavnet_res_block(nb_filter,
             padding=padding,
             dilation_rate=dr,
             name='dilate_tanh_d%d_s%s' % (dr, stack_i),
+            kernel_initializer='ones',
             activation='tanh',
             activity_regularizer=reg.l2(l2))(input_tensor)
 
@@ -40,6 +41,7 @@ def wavnet_res_block(nb_filter,
             padding=padding,
             dilation_rate=dr,
             name='dilate_sigmoid_d%d_s%s' % (dr, stack_i),
+            kernel_initializer='ones',
             activation='sigmoid',
             activity_regularizer=reg.l2(l2))(input_tensor)
 
