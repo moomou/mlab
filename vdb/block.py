@@ -1,4 +1,6 @@
 from keras.layers.merge import (add as l_add, multiply as l_multiply)
+from keras import backend as K
+from keras.layers.core import Lambda
 from keras.layers import (
     Dense,
     Dropout,
@@ -14,12 +16,12 @@ from keras.layers import (
     Input, )
 
 
-def wavnet_res_block(nb_filter,
-                     kernel_size,
-                     stack_i,
-                     dr_i,
-                     l2=0.01,
-                     padding='causal'):
+def WavnetBlock(nb_filter,
+                kernel_size,
+                stack_i,
+                dr_i,
+                l2=0.01,
+                padding='causal'):
     def f(input_tensor):
         dr = 2**dr_i
 
@@ -55,7 +57,7 @@ def wavnet_res_block(nb_filter,
     return f
 
 
-def fire_1d_block(s11, e11, e33, name_prefix, dilation_rate=1, padding='same'):
+def Fire1D(s11, e11, e33, name_prefix, dilation_rate=1, padding='same'):
     def l(input_layer):
         output = Conv1D(
             s11,
@@ -91,3 +93,15 @@ def fire_1d_block(s11, e11, e33, name_prefix, dilation_rate=1, padding='same'):
         return merged
 
     return l
+
+
+def AvgLayer(axis=-1):
+    def avg(x):
+        return K.mean(x, axis=axis, keepdims=False)
+
+    def output_shape_calc(input_shape):
+        output_shape = list(input_shape)
+        output_shape[-1] = 1
+        return tuple(output_shape)
+
+    return Lambda(avg, output_shape=output_shape_calc)

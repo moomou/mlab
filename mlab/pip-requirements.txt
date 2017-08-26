@@ -1,3 +1,4 @@
+numpy==1.13.0
 alembic==0.8.7
 appdirs==1.4.3
 appnope==0.1.0
@@ -19,6 +20,7 @@ Cython==0.25.2
 cytoolz==0.8.2
 dask==0.13.0
 decorator==4.0.11
+dill==0.2.7.1
 empyrical==0.1.11
 entrypoints==0.2.2
 fire==0.1.1
@@ -26,6 +28,7 @@ Flask==0.12
 flexmock==0.10.2
 ftfy==4.3.1
 fuzzywuzzy==0.14.0
+glog==0.3.1
 h5py==2.6.0
 html5lib==0.999999999
 ijson==2.3
@@ -49,8 +52,9 @@ matplotlib==2.0.0
 mistune==0.7.4
 mock==2.0.0
 mpi4py==2.0.0
-MulticoreTSNE==0.1
+# MulticoreTSNE==0.1
 multipledispatch==0.4.8
+multiprocess==0.70.5
 murmurhash==0.26.4
 nbconvert==5.1.1
 nbformat==4.3.0
@@ -59,7 +63,6 @@ nltk==3.2.2
 nose==1.3.7
 notebook==4.4.1
 numexpr==2.6.1
-numpy==1.13.0
 olefile==0.44
 packaging==16.8
 pandas==0.16.2
@@ -72,12 +75,15 @@ pexpect==4.2.1
 pickleshare==0.7.4
 Pillow==4.0.0
 plac==0.9.6
+pox==0.2.3
+ppft==1.6.4.7.1
 preshed==0.46.4
 prompt-toolkit==1.0.14
 protobuf==3.3.0
 psutil==5.2.2
 ptyprocess==0.5.1
 pycparser==2.17
+pydub==0.20.0
 pyemd==0.4.2
 Pygments==2.2.0
 pyparsing==2.2.0
@@ -85,7 +91,9 @@ Pyphen==0.9.4
 pyssp==0.1.6.5
 python-dateutil==2.6.0
 python-editor==1.0.1
+python-gflags==3.1.1
 python-Levenshtein==0.12.0
+python-speech-features==0.5
 pytz==2016.10
 PyYAML==3.12
 pyzmq==16.0.2

@@ -37,6 +37,20 @@ def one_hot(x, count=256):
     return np.eye(count, dtype='uint8')[x.astype('uint8')]
 
 
+def pad_data(data, frame_length):
+    assert len(data.shape) == 3
+
+    cur_frame_len = data.shape[0]
+    diff = frame_length - cur_frame_len
+
+    if diff == 0:
+        return data
+
+    assert diff > 0
+
+    return np.pad(data, ((diff, 0), (0, 0), (0, 0)), 'constant')
+
+
 @threadsafe_generator
 def speaker_random_batch_generator(h5ref,
                                    nb_speaker,
@@ -171,6 +185,124 @@ def speaker_batch_generator(h5ref,
 
         yield np.array(batch_inputs), \
             one_hot(np.array(batch_outputs, dtype='uint8'), count=nb_speaker),
+
+
+@threadsafe_generator
+def speaker_batch_generator_softmax(h5_by_fname,
+                                    all_keys,
+                                    frame_length,
+                                    total_speaker,
+                                    batch_size,
+                                    norm=True):
+    np.random.shuffle(all_keys)
+
+    counter = 0
+    while True:
+        batch_inputs = []
+        batch_outputs = []
+
+        for speaker_id, h5_fname, data_key, in all_keys[counter:
+                                                        counter + batch_size]:
+            data = h5_by_fname[h5_fname][data_key].value
+
+            if norm:
+                data /= np.linalg.norm(data, axis=1)[..., np.newaxis]
+
+            glog.debug('data:: %s', data.shape)
+            if frame_length is not None:
+                if data.shape[0] > frame_length:
+                    data = data[:frame_length]
+                elif data.shape[0] < frame_length:
+                    data = pad_data(data, frame_length)
+
+            batch_inputs.append(data)
+            batch_outputs.append(speaker_id)
+
+        counter += batch_size
+        if counter + batch_size >= len(all_keys):
+            np.random.shuffle(all_keys)
+            counter = 0
+
+        x = np.array(batch_inputs)
+        y = one_hot(
+            np.array(batch_outputs, dtype='uint16'), count=total_speaker)
+
+        glog.debug('x:: %s', x.shape)
+        glog.debug('y:: %s', y.shape)
+
+        yield x, y
+
+
+@threadsafe_generator
+def speaker_batch_generator_e2e(
+        h5_by_fname,
+        all_positive_keys,  # spk = enroll spk
+        all_negative_keys,  # spk != enroll spk
+        frame_length,
+        total_speaker,
+        batch_size,
+        norm=True):
+
+    all_keys = all_positive_keys + all_negative_keys
+    np.random.shuffle(all_keys)
+
+    counter = 0
+    while True:
+        batch_inputs = []
+        batch_outputs = []
+
+        for same_speaker, \
+                (speaker, spk_fname_data_tuple), \
+                (enroll_speaker, enroll_spk_fname_data_tuple) \
+                in all_keys[counter: counter + batch_size]:
+
+            enroll_data = [
+                h5_by_fname[h5_fname][data_key].value
+                for (h5_fname, data_key) in enroll_spk_fname_data_tuple
+            ]
+            test_data = [
+                h5_by_fname[h5_fname][data_key].value
+                for (h5_fname, data_key) in enroll_spk_fname_data_tuple
+            ]
+
+            if frame_length is not None:
+                enroll_data = [(pad_data(data, frame_length)
+                                if len(data) < frame_length else data)
+                               for data in enroll_data]
+                test_data = [(pad_data(data, frame_length)
+                              if len(data) < frame_length else data)
+                             for data in test_data]
+
+            if norm:
+                enroll_data = [
+                    data / np.linalg.norm(data, axis=1)[..., np.newaxis]
+                    for data in enroll_data
+                ]
+                test_data = [
+                    data / np.linalg.norm(data, axis=1)[..., np.newaxis]
+                    for data in test_data
+                ]
+
+            glog.debug('data:: %s', enroll_data[0].shape, len(enroll_data))
+            glog.debug('data:: %s', test_data[0].shape, len(test_data))
+
+            assert len(test_data) == 1
+            batch_inputs.append(np.array(test_data + enroll_data))
+            # (True, False)
+            batch_outputs.append(1 if same_speaker else 0)
+
+        counter += batch_size
+        if counter + batch_size >= len(all_keys):
+            np.random.shuffle(all_keys)
+            counter = 0
+
+        x = batch_inputs
+        y = one_hot(np.array(batch_outputs, dtype='uint8'), count=2)
+
+        glog.debug('x:: %s', x.shape)
+        glog.debug('y:: %s', y.shape)
+
+        yield x, y
 
 
 def full_wav_data(h5ref, keys, frame_length, frame_stride, batch_size):

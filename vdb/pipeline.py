@@ -1,15 +1,19 @@
 #!/usr/bin/env python
 import sys
+from collections import defaultdict
+from itertools import groupby
 
 import numpy as np
 import glog
-from collections import defaultdict
 
 from generator import (
     wav_batch_sample_sizes,
     wav_batch_generator,
     speaker_random_batch_generator,
-    speaker_batch_generator, )
+    speaker_batch_generator,
+    speaker_batch_generator_softmax,
+    speaker_batch_generator_e2e, )
+from speaker_id import create_speaker_id, get_total_speaker
 
 
 class H5Wrapper:
@@ -32,6 +36,160 @@ def _make_speaker(keys):
         return speaker_map[spk]
 
     return speaker_fn, speaker_map
+
+
+def get_speaker_generators_softmax(all_h5s, frame_length, batch_size):
+    all_test_keys = []
+    all_train_keys = []
+    h5_by_fname = {}
+
+    for fname, h5 in all_h5s:
+        h5_by_fname[fname] = h5
+        all_keys = sorted([k for k in h5.keys() if not k.endswith('total')])
+        glog.info('Here:: %s, %s', fname, len(all_keys))
+
+        for k, g in groupby(all_keys, lambda k: k.split('.')[0]):
+            # TODO: fix common prefix
+            speaker_id = create_speaker_id(fname[:13], k)
+
+            glist = list(g)
+            # cannot shuffl - if you did this, then validation
+            # and training data get mixed up
+            # np.random.shuffle(glist)
+
+            train_len = int(len(glist) * 0.8)
+            test_len = len(glist) - train_len
+
+            assert test_len > 0 and train_len > 0
+
+            # files_by_speaker_train[speaker_id] = (fname, glist[:train_len])
+            all_train_keys.extend(
+                zip([speaker_id] * train_len, [fname] * train_len,
+                    glist[:train_len]))
+
+            # files_by_speaker_test[speaker_id] = (fname, glist[train_len:])
+            all_test_keys.extend(
+                zip([speaker_id] * test_len, [fname] * test_len, glist[
+                    train_len:]))
+
+    total_speaker = get_total_speaker()
+    glog.debug('Total speaker:: %s' % total_speaker)
+
+    return {
+        'train':
+        speaker_batch_generator_softmax(
+            h5_by_fname,
+            all_train_keys,
+            frame_length,
+            total_speaker,
+            batch_size=batch_size),
+        'test':
+        speaker_batch_generator_softmax(
+            h5_by_fname,
+            all_test_keys,
+            frame_length,
+            total_speaker,
+            batch_size=batch_size),
+    }, {
+        'train': len(all_train_keys),
+        'test': len(all_test_keys),
+    }, total_speaker
+
+
+def _speaker_pair_generator(files_by_speaker, group_n_1):
+    '''to ensure representative data sample
+    we generate samples as follows:
+
+    For every speaker, we keep positive sample and negative sample
+
+        5 positive sample
+        5 negative sample
+
+    randomly
+    '''
+    all_positive_keys = []
+    all_negative_keys = []
+
+    all_speakers = list(files_by_speaker.keys())
+    for spk in all_speakers:
+        # we generate 5 positive samples
+        for i in range(5):
+            spk_fnames = np.random.choice(
+                files_by_speaker[spk], group_n_1 + 1, replace=False)
+            all_positive_keys.push(
+                [True, (spk, spk_fnames[0]), (spk, spk_fnames[1:])])
+
+        # we generate 5 negative samples for 5 different speakers
+        # pick 5 random other speakers
+        enroll_speakers = np.random.choice(all_speakers, 5, replace=False)
+        seen_enroll_speaker = set()
+        for enroll_spk in enroll_speakers:
+            while seen_enroll_speaker.has(enroll_spk) or enroll_spk == spk:
+                enroll_spk = np.random.choice(all_speakers)
+            seen_enroll_speaker.add(enroll_spk)
+
+            spk_fnames = np.random.choice(files_by_speaker[spk], 1)
+            enroll_spk_fnames = np.random.choice(
+                files_by_speaker[enroll_spk], group_n_1, replace=False)
+            all_negative_keys.push(
+                [False, (spk, spk_fnames), (enroll_spk, enroll_spk_fnames)])
+
+    return all_positive_keys, all_negative_keys
+
+
+def get_speaker_generators_e2e(all_h5s, frame_length, batch_size, group_n_1=4):
+    train_by_speaker = defaultdict(list)
+    test_by_speaker = defaultdict(list)
+
+    h5_by_fname = {}
+
+    for fname, h5 in all_h5s:
+        h5_by_fname[fname] = h5
+        all_keys = sorted([k for k in h5.keys() if not k.endswith('total')])
+        glog.info('Here:: %s, %s', fname, len(all_keys))
+
+        for k, g in groupby(all_keys, lambda k: k.split('.')[0]):
+            # TODO: fix common prefix
+            speaker_id = create_speaker_id(fname[:13], k)
+
+            glist = list(g)
+            train_len = int(len(glist) * 0.8)
+            test_len = len(glist) - train_len
+
+            assert test_len > 0 and train_len > 0
+
+            train_by_speaker[speaker_id] = (fname, glist[:train_len])
+            test_by_speaker[speaker_id] = (fname, glist[train_len:])
+
+    all_pos_train_keys, all_neg_train_keys = _speaker_pair_generator(
+        train_by_speaker, group_n_1)
+    all_pos_test_keys, all_neg_test_keys = _speaker_pair_generator(
+        test_by_speaker, group_n_1)
+
+    total_speaker = get_total_speaker()
+    glog.debug('Total speaker:: %s' % total_speaker)
+
+    return {
+        'train':
+        speaker_batch_generator_e2e(
+            h5_by_fname,
+            all_pos_train_keys,
+            all_neg_train_keys,
+            frame_length,
+            total_speaker,
+            batch_size=batch_size),
+        'test':
+        speaker_batch_generator_e2e(
+            h5_by_fname,
+            all_pos_test_keys,
+            all_neg_test_keys,
+            frame_length,
+            total_speaker,
+            batch_size=batch_size),
+    }, {
+        'train': len(all_pos_train_keys) + len(all_pos_train_keys),
+        'test': len(all_pos_test_keys) + len(all_pos_test_keys),
+    }, total_speaker
 
 
 def get_speaker_generators(train_h5,
@@ -64,8 +222,12 @@ def get_speaker_generators(train_h5,
 
     train_keys = []
     test_keys = []
+
+    # TODO: remove this
+    counter = 0
     for speaker in keys_by_speaker:
         sample_len = len(keys_by_speaker[speaker])
+        np.random.shuffle(keys_by_speaker[speaker])
 
         if sample_len < 2:
             glog.error('Skipping speaker found::', speaker)
@@ -74,6 +236,7 @@ def get_speaker_generators(train_h5,
         test_len = int(0.1 * sample_len)
         test_keys.extend(keys_by_speaker[speaker][:test_len])
         train_keys.extend(keys_by_speaker[speaker][test_len:])
+        counter += 1
 
     np.random.shuffle(train_keys)
     np.random.shuffle(test_keys)

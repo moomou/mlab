@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 import os
+import time
+from pprint import pformat
 
 import keras
 import h5py
@@ -29,16 +31,24 @@ from constant import (
 from data_util import (
     DataMode,
     timit_h5_fname,
-    vctk_h5_fname, )
+    vctk_h5_fname,
+    fff_en_h5_fname,
+    ffh_jp_h5_fname,
+    voice_h5_fname, )
 from model import (
-    extend_model,
     build_model,
     build_model2,
     build_model3,
+    build_model4,
+    build_model5,
+    build_model6_softmax,
     load_model_h5,
     compute_receptive_field, )
 from generator import one_hot
-from pipeline import get_speaker_generators, get_wav_generators
+from pipeline import (
+    get_speaker_generators,
+    get_wav_generators,
+    get_speaker_generators_softmax, )
 
 
 def _set_tf_session():
@@ -95,17 +105,6 @@ def make_optimizer(optimizer,
         raise ValueError('Invalid config for optimizer.optimizer: ' +
                          optimizer)
     return optim
-
-
-def skip_out_of_receptive_field(func, width):
-    def wrapper(y_true, y_pred):
-        y_true = y_true[:, width - 1:, :]
-        y_pred = y_pred[:, width - 1:, :]
-
-        return func(y_true, y_pred)
-
-    wrapper.__name__ = func.__name__
-    return wrapper
 
 
 def build_speaker_h5(output_path,
@@ -236,8 +235,6 @@ def train(name,
             './timit2_TRAIN_mfcc_@16000.h5', 'r', driver='core')
         test_h5 = h5py.File('./timit2_TEST_mfcc_@16000.h5', 'r', driver='core')
 
-        mfcc_receptive_width = int(receptive_field_ms / MFCC_SAMPLE_LEN_MS)
-
         frame_stride = 15 * MFCC_NB_COEFFICIENTS
         frame_length = (30) * MFCC_NB_COEFFICIENTS
 
@@ -321,23 +318,37 @@ def train(name,
 
 def train2(name,
            nb_epoch=1000,
-           batch_size=12,
-           early_stopping_patience=20,
+           batch_size=72,
+           early_stopping_patience=24,
            train_only_in_receptive_field=False,
            test_only=False,
            debug=True,
            checkpoints_dir=None,
-           mode='raw'):
+           frame_length=20,
+           frame_stride=5,
+           mode_str='mfcc3'):
 
     _set_tf_session()
-    mode = getattr(DataMode, mode)
 
-    glog.info('loading %s...' % mode.name)
+    mode = getattr(DataMode, mode_str[:-1])
+
     train_fname = timit_h5_fname('train', mode)
     test_fname = timit_h5_fname('test', mode)
+    glog.info('loading %s:: (%s, %s) ', mode.name, train_fname, test_fname)
 
-    frame_length = 9
-    frame_stride = 3
+    if mode.name.startswith('mfcc'):
+        input_shape = (frame_length, MFCC_NB_COEFFICIENTS * 2, 1)
+        kernel_sizes = [
+            # input_shape
+            (3, 3),  # dilation kernel x n - output: (frame_length, 52),
+            (3, 3),  # conv2d - output: (18, 50)
+            (2, 2),  # maxpool - output: (9, 25),
+            (3, 3),  # conv2d - output: (7, 23)
+            (2, 2),  # maxpool - output: (3, 11)
+            (33, 256),  # reshape
+        ]
+    else:
+        assert False, 'Unsupported mode:: %s' % mode.name
 
     train_h5 = h5py.File(train_fname, 'r', driver='core')
     test_h5 = h5py.File(test_fname, 'r', driver='core')
@@ -351,9 +362,11 @@ def train2(name,
         batch_size,
         use_test_only=test_only)
 
-    model = build_model3(
-        (frame_length, MFCC_NB_COEFFICIENTS),
+    build_model_fn = build_model5
+    model = build_model_fn(
+        input_shape,
         output_size,
+        kernel_sizes,
         checkpoints_dir=checkpoints_dir)
 
     loss = 'categorical_crossentropy'
@@ -364,7 +377,7 @@ def train2(name,
     with open('./%s/model_%s.json' % (CHECKPT_DIR, name), 'w') as f:
         f.write(model.to_json())
 
-    optim = make_optimizer(**adam())
+    optim = RMSprop()  # make_optimizer(**adam())
     model.compile(optimizer=optim, loss=loss, metrics=all_metrics)
 
     callbacks = [
@@ -395,9 +408,102 @@ def train2(name,
         initial_epoch=model.epoch_num)
 
 
+def _train3_setup(frame_length):
+    _set_tf_session()
+
+    input_shape = (frame_length, MFCC_NB_COEFFICIENTS, 1)
+
+    # data files
+    h5s = [
+        # timit_h5_fname('TEST', DataMode.mfcc_delta),
+        # timit_h5_fname('TRAIN', DataMode.mfcc_delta),
+        # vctk_h5_fname(DataMode.mfcc_delta)
+        # fff_en_h5_fname(DataMode.mfcc),
+        fff_en_h5_fname(DataMode.mfcc, noise=True),
+        # ffh_jp_h5_fname(DataMode.mfcc),
+        ffh_jp_h5_fname(DataMode.mfcc, noise=True),
+        # voice_h5_fname(DataMode.mfcc_delta),
+    ]
+
+    name_h5_tuples = [(name, h5py.File(name)) for name in h5s]
+
+    return input_shape, name_h5_tuples
+
+
+def train3_softmax(name,
+                   frame_length=None,
+                   nb_epoch=1000,
+                   batch_size=1,
+                   early_stopping_patience=42,
+                   chkd_dir=None):
+    if chkd_dir is None:
+        chkd_dir = CHECKPT_DIR
+
+    input_shape, h5s = _train3_setup(frame_length)
+
+    data_generators, sample_sizes, output_size = \
+        get_speaker_generators_softmax(
+            h5s, frame_length, batch_size)
+
+    model = build_model6_softmax(
+        input_shape, output_size, checkpoints_dir=chkd_dir)
+
+    loss = 'categorical_crossentropy'
+    all_metrics = ['accuracy']
+
+    with open('./%s/model_%s.json' % (CHECKPT_DIR, name), 'w') as f:
+        f.write(model.to_json())
+
+    optim = RMSprop()  # make_optimizer(**adam())
+    model.compile(optimizer=optim, loss=loss, metrics=all_metrics)
+
+    callbacks = [
+        # ReduceLROnPlateau(
+        # patience=early_stopping_patience / 2,
+        # cooldown=early_stopping_patience / 4,
+        # verbose=1),
+        EarlyStopping(patience=early_stopping_patience, verbose=1),
+    ]
+
+    history_csv = 'train3_softmax_history_%s.csv' % time.strftime('%d_%m_%Y')
+    callbacks.extend([
+        ModelCheckpoint(
+            os.path.join(CHECKPT_DIR,
+                         'checkpoint.{epoch:05d}.va{val_acc:.5f}.hdf5'),
+            save_best_only=True,
+            monitor='val_acc'),
+        CSVLogger(os.path.join('.', history_csv))
+    ])
+
+    glog.info('Generator param:: %s',
+              pformat(
+                  dict(
+                      epochs=nb_epoch,
+                      sample_sizes=sample_sizes,
+                      batch_size=batch_size)))
+
+    model.fit_generator(
+        data_generators['train'],
+        sample_sizes['train'] / batch_size,
+        epochs=nb_epoch,
+        validation_data=data_generators['test'],
+        validation_steps=sample_sizes['test'] / batch_size,
+        workers=4,
+        callbacks=callbacks,
+        initial_epoch=model.epoch_num)
+
+
+def train3_e2e(name,
+               frame_length,
+               nb_epoch=1000,
+               batch_size=72,
+               early_stopping_patience=24,
+               checkpoints_dir=None):
+    input_shape, h5s = _train3_setup(frame_length)
+
+
 if __name__ == '__main__':
     import fire
-    import os
 
     if os.environ.get('DEBUG'):
         glog.setLevel('DEBUG')
@@ -405,6 +511,7 @@ if __name__ == '__main__':
     fire.Fire({
         't': train,
         't2': train2,
-        'build_speaker_h5': build_speaker_h5,
-        'build_embedding': build_embedding,
+        't3': train3_softmax,
+        # 'build_speaker_h5': build_speaker_h5,
+        # 'build_embedding': build_embedding,
     })
