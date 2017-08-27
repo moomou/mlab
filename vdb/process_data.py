@@ -36,7 +36,7 @@ def _process_speaker(speaker, wavfiles, h5, mode, aug_option=None):
     wavfiles_group = zip_longest(*(iter(wavfiles), ) * mp.cpu_count())
 
     for names in tqdm(wavfiles_group, desc='files', position=1):
-        if False and THREAD_POOL == 'SPK':
+        if THREAD_POOL == 'SPK':
             results = p.map(process_wav, [(n, mode, aug_option) for n in names
                                           if n])
         else:
@@ -83,7 +83,7 @@ def _all_bg():
     return _all_bg_cache
 
 
-def timit(dataset, mode='raw'):
+def timit(dataset, mode='raw', overwrite=True):
     mode = getattr(DataMode, mode)
     fname = timit_h5_fname(dataset, mode)
 
@@ -108,6 +108,7 @@ def timit(dataset, mode='raw'):
                     mode,
                     aug_option={
                         'bgNoise': all_bg,
+                        'overwrite': overwrite,
                     })
                 speaker_stat[speaker] = total_duration_sec
 
