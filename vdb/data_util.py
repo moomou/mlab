@@ -29,8 +29,6 @@ PLAY_BACK_SPEED = [1, 1.05]
 
 DATA_VERSION = 5
 
-p = mp.Pool(mp.cpu_count())
-
 
 class DataMode(Enum):
     summary = 0
@@ -254,6 +252,7 @@ def process_wav(args):
     return total_duration_sec, all_data
 
 
+p = mp.Pool(mp.cpu_count() // 2)
 if __name__ == '__main__':
     import fire
 

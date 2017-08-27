@@ -28,8 +28,6 @@ from constant import (
     VOICE_ROOT, )
 from config import THREAD_POOL
 
-p = mp.Pool(mp.cpu_count() // 4)
-
 
 def _process_speaker(speaker, wavfiles, h5, mode, aug_option=None):
     counter = 0
@@ -243,6 +241,7 @@ def voice(mode='raw'):
 
         glog.info(pformat(speaker_stat))
 
+p = mp.Pool(mp.cpu_count() // 2)
 
 if __name__ == '__main__':
     import fire
