@@ -1,3 +1,4 @@
+import multiprocessing as mp
 import os
 
 HOME_PREFIX = '/home/moomou/dev/mlab/vdb'
@@ -23,3 +24,5 @@ MFCC_NB_COEFFICIENTS = 32
 
 SAMPLE_RATE = 8000 * 2
 MAX_FREQ = SAMPLE_RATE / 2
+
+CPU_COUNT = mp.cpu_count() // 4
