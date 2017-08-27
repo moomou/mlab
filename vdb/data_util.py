@@ -27,7 +27,7 @@ FBANK_CONFIG = {
 S2N_RATIO = [5, 10]  # 10, 15
 PLAY_BACK_SPEED = [1, 1.05]
 
-DATA_VERSION = 5
+DATA_VERSION = 6
 
 
 class DataMode(Enum):
@@ -189,7 +189,7 @@ def _encode_data(args):
         data = data[..., np.newaxis]
         glog.debug('mfcc:: %s, %s', data.shape, data)
     elif mode.name.startswith('mfcc'):
-        data = mfcc(data, sr, **SSC_CONFIG)
+        data = mfcc(data, sr, **MFCC_CONFIG)
 
         if mode == DataMode.mfcc_delta:
             data_delta = delta(data, 1)
