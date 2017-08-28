@@ -6,6 +6,8 @@ HOME_PREFIX = '/home/moomou/dev/mlab/vdb'
 CHECKPT_DIR = os.environ.get('CHK_DIR', os.path.join('./checkpoints'))
 DATA_ROOT = '/home/moomou/dev/data'
 
+CN_ROOT = os.path.join(DATA_ROOT, 'cn_wav')
+DAN_ROOT = os.path.join(DATA_ROOT, 'danish')
 TIMIT_ROOT = os.path.join(DATA_ROOT, 'timit', 'raw', 'TIMIT')
 VCTK_ROOT = os.path.join(DATA_ROOT, 'vctk', 'data')
 NOISE_ROOT = os.path.join(DATA_ROOT, 'bgNoise')

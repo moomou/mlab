@@ -14,18 +14,22 @@ from data_util import (
     DataMode,
     process_wav,
     timit_h5_fname,
+    dan_h5_fname,
     vctk_h5_fname,
     ffh_jp_h5_fname,
     fff_en_h5_fname,
-    voice_h5_fname, )
+    voice_h5_fname,
+    cn_wav_h5_fname, )
 
 from constant import (
     VCTK_ROOT,
+    DAN_ROOT,
     TIMIT_ROOT,
     NOISE_ROOT,
     FFF_EN_ROOT,
     FFH_JP_ROOT,
-    VOICE_ROOT, )
+    VOICE_ROOT,
+    CN_ROOT, )
 from config import THREAD_POOL
 
 
@@ -241,6 +245,81 @@ def voice(mode='raw'):
             speaker_stat[speaker] = total_duration_sec
 
         glog.info(pformat(speaker_stat))
+
+
+def cn_wav(dataset, mode='raw', overwrite=True):
+    mode = getattr(DataMode, mode)
+    h5_name = cn_wav_h5_fname(dataset, mode)
+
+    all_bg = _all_bg()
+    dataset_root = os.path.join(CN_ROOT, dataset)
+    with h5py.File(h5_name, mode='a') as h5:
+        root, speakers, _ = next(os.walk(dataset_root))
+
+        speaker_stat = {}
+        for speaker in tqdm(speakers, desc='spk'):
+            wavfiles = [
+                os.path.join(root, speaker, f)
+                for f in os.listdir(os.path.join(root, speaker))
+                if f.lower().endswith('wav')
+            ]
+
+            # we take at most 10
+            wavfiles = sorted(wavfiles)[:10]
+
+            total_duration_sec = _process_speaker(
+                speaker,
+                wavfiles,
+                h5,
+                mode,
+                aug_option={
+                    'bgNoise': all_bg,
+                    'overwrite': overwrite,
+                })
+            speaker_stat[speaker] = total_duration_sec
+
+        glog.info('\n' * 10)
+        glog.info(pformat(speaker_stat))
+
+
+def danish_wav(dataset, mode='raw', overwrite=True):
+    mode = getattr(DataMode, mode)
+    h5_name = dan_h5_fname(dataset, mode)
+
+    all_bg = _all_bg()
+    dataset_root = os.path.join(DAN_ROOT, dataset)
+
+    with h5py.File(h5_name, mode='a') as h5:
+        root, dirs, _ = next(os.walk(dataset_root))
+
+        speakers = defaultdict(list)
+        # gather all speakers
+        for _dir in dirs:
+            _, wavs, _ = next(os.walk(dataset_root))
+            for wav in [wav for wav in wavs if wav.lower().endswith('wav')]:
+                spk = os.path.basename(wav).split('-')[0]
+                speakers[spk].append(os.path.join(root, _dir, wav))
+
+        speaker_stat = {}
+        for (speaker, wavfiles) in tqdm(speakers, desc='spk'):
+            # we take at most 10
+            wavfiles = sorted(wavfiles)[:10]
+
+            total_duration_sec = _process_speaker(
+                speaker,
+                wavfiles,
+                h5,
+                mode,
+                aug_option={
+                    'bgNoise': all_bg,
+                    'overwrite': overwrite,
+                })
+
+            speaker_stat[speaker] = total_duration_sec
+
+        glog.info('\n' * 10)
+        glog.info(pformat(speaker_stat))
+
 
 p = mp.Pool(mp.cpu_count() // 2)
 

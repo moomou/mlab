@@ -43,6 +43,20 @@ class DataMode(Enum):
     ssc = 7
 
 
+def cn_wav_h5_fname(dataset, mode, noise=True):
+    fname = 'cnwav_%s_%d_%s_%s_@%s.h5' % (dataset, DATA_VERSION, mode.name,
+                                          SAMPLE_RATE, ''
+                                          if noise is None else '_n')
+    return fname
+
+
+def dan_h5_fname(dataset, mode, noise=True):
+    fname = 'dan_%s_%d_%s_%s_@%s.h5' % (dataset, DATA_VERSION, mode.name,
+                                        SAMPLE_RATE, ''
+                                        if noise is None else '_n')
+    return fname
+
+
 def timit_h5_fname(dataset, mode, noise=True):
     fname = 'timit%d_%s_%s_@%s%s.h5' % (DATA_VERSION, dataset.lower(),
                                         mode.name, SAMPLE_RATE, ''
