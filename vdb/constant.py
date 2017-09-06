@@ -1,9 +1,18 @@
 import multiprocessing as mp
 import os
+import sys
+
+import glog
 
 HOME_PREFIX = '/home/moomou/dev/mlab/vdb'
 
 CHECKPT_DIR = os.environ.get('CHK_DIR', os.path.join('./checkpoints'))
+if not os.path.exists(CHECKPT_DIR):
+    os.mkdir(CHECKPT_DIR)
+elif os.path.isfile(CHECKPT_DIR):
+    glog.error('CHK_DIR is a file :: %s', CHECKPT_DIR)
+    sys.exit(1)
+
 DATA_ROOT = '/home/moomou/dev/data'
 
 CN_ROOT = os.path.join(DATA_ROOT, 'cn_wav')
@@ -22,7 +31,7 @@ FFF_EN_SAMPLE = os.path.join(FFF_EN_ROOT, 'Anankos/0x52743E0.WAV')
 FFH_JP_SAMPLE = os.path.join(FFF_EN_ROOT, '01/VOICE_HECTOR_SKILL_3.mp3')
 
 MFCC_SAMPLE_LEN_MS = 25
-MFCC_NB_COEFFICIENTS = 32
+MFCC_NB_COEFFICIENTS = 26
 
 SAMPLE_RATE = 8000 * 2
 MAX_FREQ = SAMPLE_RATE / 2

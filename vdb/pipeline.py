@@ -55,7 +55,7 @@ def get_speaker_generators_softmax(all_h5s, frame_length, batch_size):
             glist = list(g)
             # cannot shuffl - if you did this, then validation
             # and training data get mixed up
-            # np.random.shuffle(glist)
+            np.random.shuffle(glist)
 
             train_len = int(len(glist) * 0.8)
             test_len = len(glist) - train_len

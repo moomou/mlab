@@ -192,6 +192,7 @@ def _encode_data(args):
     filename, mode, sr = args
 
     data, sr = librosa.core.load(filename, sr=sr)
+    data, _ = librosa.effects.trim(data)
     duration = librosa.get_duration(y=data, sr=sr)
 
     if mode.name.startswith('spec'):

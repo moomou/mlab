@@ -2,6 +2,8 @@
 import os
 
 import glog
+import h5py
+import keras
 from keras.models import (
     Model,
     load_model, )
@@ -13,6 +15,7 @@ from keras import regularizers as reg
 from keras.layers import (
     Conv1D,
     Conv2D,
+    AveragePooling2D,
     MaxPooling1D,
     MaxPooling2D,
     GlobalMaxPooling1D,
@@ -46,7 +49,7 @@ def _load_checkoint(model, checkpoints_dir):
 
     if last_checkpoint and last_checkpoint_path:
         model.epoch_num = int(last_checkpoint[11:16]) + 1
-        model.load_weights(last_checkpoint_path)
+        model.load_weights(last_checkpoint_path, by_name=True)
 
         glog.info('Loaded model from epoch: %d' % model.epoch_num)
 
@@ -92,7 +95,7 @@ def build_model(frame_length,
 
     for s in range(nb_stack):
         for i in range(0, dilation_depth + 1):
-            out, skip_out = wavnet_res_block(
+            out, skip_out = WavnetBlock(
                 nb_filter, kernel_size, s, i, l2=l2)(out)
             skip_conn.append(skip_out)
 
@@ -354,20 +357,22 @@ def build_model6_softmax(input_shape, nb_output_bin, checkpoints_dir=None):
     # TODO: try dilated convolution
     # TODO: try attention network
     out = Conv2D(2**6, (1, 3), activation='relu')(out)
-    out = Conv2D(2**6, (1, 3), padding='same', activation='relu')(out)
-    out = Conv2D(2**6, (1, 3), padding='same', activation='relu')(out)
-    out = BatchNormalization()(out)
-    out = Dense(2**8, activation='relu')(out)
-    out = Dense(2**8, activation='relu')(out)
-    out = Dropout(0.5)(out)
-    out = Dense(2**8, activation='relu')(out)
+    out = Conv2D(2**6, (2, 2), padding='same', activation='relu')(out)
+    out = Dense(2**7, activation='relu')(out)
+    out = Dense(2**7, activation='relu')(out)
     out = Dropout(0.5)(out)
 
+    out = Dense(2**7, activation='relu')(out)
+    out = Dropout(0.5)(out)
     # TODO: try residual network
     # TODO: try stacked bottle neck layer
-    out = AvgLayer()(out)
+    out = AveragePooling2D((1, 2**7), data_format='channels_first')(out)
+    # out = AvgLayer()(out)
     out = Flatten()(out)
-    out = Dense(nb_output_bin, activation='softmax')(out)
+    out = Dense(2**7, name='dvec', activation='relu')(out)
+    out = Dense(
+        nb_output_bin, activation='softmax',
+        name='output_%s' % nb_output_bin)(out)
 
     model = Model(inputs=start, outputs=out)
     model.summary()
@@ -403,6 +408,6 @@ if __name__ == '__main__':
 
     fire.Fire({
         'm': lambda: build_model5(input_shape, 100, kernel_sizes),
-        '6s': lambda: build_model6_softmax((300, 13, 1), 100),
+        '6s': lambda: build_model6_softmax((300, 26, 1), 100),
         'crf': compute_receptive_field,
     })
