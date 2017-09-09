@@ -44,7 +44,7 @@ jupyter-client==5.0.0
 jupyter-core==4.3.0
 jupyterlab==0.18.1
 Keras==2.0.5
-librosa==0.4.3
+librosa==0.5.1
 Logbook==1.0.0
 Mako==1.0.4
 MarkupSafe==1.0
