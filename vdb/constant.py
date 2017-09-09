@@ -6,7 +6,7 @@ import glog
 
 HOME_PREFIX = '/home/moomou/dev/mlab/vdb'
 
-CHECKPT_DIR = os.environ.get('CHK_DIR', os.path.join('./checkpoints'))
+CHECKPT_DIR = os.environ.get('CHKDIR', os.path.join('./chkdirs'))
 if not os.path.exists(CHECKPT_DIR):
     os.mkdir(CHECKPT_DIR)
 elif os.path.isfile(CHECKPT_DIR):

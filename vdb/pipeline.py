@@ -12,7 +12,8 @@ from generator import (
     speaker_random_batch_generator,
     speaker_batch_generator,
     speaker_batch_generator_softmax,
-    speaker_batch_generator_e2e, )
+    speaker_batch_generator_e2e,
+    _speaker_pair_generator, )
 from speaker_id import create_speaker_id, get_total_speaker
 
 
@@ -96,48 +97,7 @@ def get_speaker_generators_softmax(all_h5s, frame_length, batch_size):
     }, total_speaker
 
 
-def _speaker_pair_generator(files_by_speaker, group_n_1):
-    '''to ensure representative data sample
-    we generate samples as follows:
-
-    For every speaker, we keep positive sample and negative sample
-
-        5 positive sample
-        5 negative sample
-
-    randomly
-    '''
-    all_positive_keys = []
-    all_negative_keys = []
-
-    all_speakers = list(files_by_speaker.keys())
-    for spk in all_speakers:
-        # we generate 5 positive samples
-        for i in range(5):
-            spk_fnames = np.random.choice(
-                files_by_speaker[spk], group_n_1 + 1, replace=False)
-            all_positive_keys.push(
-                [True, (spk, spk_fnames[0]), (spk, spk_fnames[1:])])
-
-        # we generate 5 negative samples for 5 different speakers
-        # pick 5 random other speakers
-        enroll_speakers = np.random.choice(all_speakers, 5, replace=False)
-        seen_enroll_speaker = set()
-        for enroll_spk in enroll_speakers:
-            while seen_enroll_speaker.has(enroll_spk) or enroll_spk == spk:
-                enroll_spk = np.random.choice(all_speakers)
-            seen_enroll_speaker.add(enroll_spk)
-
-            spk_fnames = np.random.choice(files_by_speaker[spk], 1)
-            enroll_spk_fnames = np.random.choice(
-                files_by_speaker[enroll_spk], group_n_1, replace=False)
-            all_negative_keys.push(
-                [False, (spk, spk_fnames), (enroll_spk, enroll_spk_fnames)])
-
-    return all_positive_keys, all_negative_keys
-
-
-def get_speaker_generators_e2e(all_h5s, frame_length, batch_size, group_n_1=4):
+def get_speaker_generators_e2e(all_h5s, frame_length, batch_size, enroll_k):
     train_by_speaker = defaultdict(list)
     test_by_speaker = defaultdict(list)
 
@@ -162,9 +122,9 @@ def get_speaker_generators_e2e(all_h5s, frame_length, batch_size, group_n_1=4):
             test_by_speaker[speaker_id] = (fname, glist[train_len:])
 
     all_pos_train_keys, all_neg_train_keys = _speaker_pair_generator(
-        train_by_speaker, group_n_1)
+        train_by_speaker, enroll_k)
     all_pos_test_keys, all_neg_test_keys = _speaker_pair_generator(
-        test_by_speaker, group_n_1)
+        test_by_speaker, enroll_k)
 
     total_speaker = get_total_speaker()
     glog.debug('Total speaker:: %s' % total_speaker)
@@ -173,6 +133,7 @@ def get_speaker_generators_e2e(all_h5s, frame_length, batch_size, group_n_1=4):
         'train':
         speaker_batch_generator_e2e(
             h5_by_fname,
+            enroll_k,
             all_pos_train_keys,
             all_neg_train_keys,
             frame_length,
@@ -181,6 +142,7 @@ def get_speaker_generators_e2e(all_h5s, frame_length, batch_size, group_n_1=4):
         'test':
         speaker_batch_generator_e2e(
             h5_by_fname,
+            enroll_k,
             all_pos_test_keys,
             all_neg_test_keys,
             frame_length,

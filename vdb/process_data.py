@@ -7,6 +7,7 @@ from pprint import pformat
 
 import h5py
 import glog
+import numpy as np
 from tqdm import tqdm, trange
 from pydub import AudioSegment
 

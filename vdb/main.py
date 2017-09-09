@@ -42,13 +42,15 @@ from model import (
     build_model4,
     build_model5,
     build_model6_softmax,
+    build_model6_e2e,
     load_model_h5,
     compute_receptive_field, )
 from generator import one_hot
 from pipeline import (
     get_speaker_generators,
     get_wav_generators,
-    get_speaker_generators_softmax, )
+    get_speaker_generators_softmax,
+    get_speaker_generators_e2e, )
 
 
 def _set_tf_session():
@@ -62,6 +64,26 @@ def categorical_mean_squared_error(y_true, y_pred):
     '''MSE for categorical variables.'''
     return K.mean(
         K.square(K.argmax(y_true, axis=-1) - K.argmax(y_pred, axis=-1)))
+
+
+def d_hinge_loss(p=0., n=0.7):
+    import tensorflow as tf
+
+    def _d_hinge_loss(y_true, y_pred):
+        # Euclidean distance between x1,x2
+        y_pred = K.l2_normalize(y_pred, axis=-1)
+        l2diff = tf.sqrt(
+            tf.reduce_sum(
+                tf.square(tf.subtract(y_pred[:, :128], y_pred[:, 128:])),
+                reduction_indices=1))
+
+        match_loss = K.maximum(0., p + l2diff)
+        mismatch_loss = K.maximum(0., n - l2diff)
+
+        return K.mean(
+            y_true * match_loss + (1. - y_true) * mismatch_loss, axis=-1)
+
+    return _d_hinge_loss
 
 
 def sgd():
@@ -114,17 +136,18 @@ def _train3_setup(frame_length):
 
     # data files
     h5s = [
-        timit_h5_fname('test', DataMode.mfcc, noise=True),
+        # timit_h5_fname('test', DataMode.mfcc, noise=True),
         # timit_h5_fname('train', DataMode.mfcc, noise=True),
         # vctk_h5_fname(DataMode.mfcc_delta)
-        fff_en_h5_fname(DataMode.mfcc, noise=True),
+        # fff_en_h5_fname(DataMode.mfcc, noise=True),
         ffh_jp_h5_fname(DataMode.mfcc, noise=True),
     ]
     h5s = [os.path.join('./h5s', f) for f in h5s]
     name_h5_tuples = []
     for name in h5s:
         if name.find('train') == -1:
-            name_h5_tuples.append((name, h5py.File(name, 'r', driver='core')))
+            name_h5_tuples.append((name, h5py.File(name,
+                                                   'r'))),  # driver='core')))
         else:
             name_h5_tuples.append((name, h5py.File(name, 'r')))
 
@@ -155,7 +178,7 @@ def train3_softmax(name,
     with open('./%s/model_%s.json' % (CHECKPT_DIR, name), 'w') as f:
         f.write(model.to_json())
 
-    optim = RMSprop(lr=0.005, decay=1e-6)  # make_optimizer(**adam())
+    optim = RMSprop()  # make_optimizer(**adam())
     model.compile(optimizer=optim, loss=loss, metrics=all_metrics)
 
     callbacks = [
@@ -170,9 +193,9 @@ def train3_softmax(name,
     callbacks.extend([
         ModelCheckpoint(
             os.path.join(CHECKPT_DIR,
-                         'checkpoint.{epoch:05d}.va{val_acc:.5f}.hdf5'),
+                         'checkpoint.{epoch:05d}.va{val_loss:.5f}.hdf5'),
             save_best_only=True,
-            monitor='val_acc'),
+            monitor='val_loss'),
         CSVLogger(os.path.join('.', history_csv))
     ])
 
@@ -196,11 +219,72 @@ def train3_softmax(name,
 
 def train3_e2e(name,
                frame_length,
+               enroll_k=4,
                nb_epoch=1000,
                batch_size=72,
                early_stopping_patience=24,
-               checkpoints_dir=None):
+               chkd_dir=CHECKPT_DIR):
+
     input_shape, h5s = _train3_setup(frame_length)
+
+    data_generators, sample_sizes, output_size = \
+        get_speaker_generators_e2e(
+            h5s, frame_length, batch_size, enroll_k)
+
+    model = build_model6_e2e(input_shape, enroll_k, checkpoints_dir=chkd_dir)
+
+    with open('./%s/model_%s.json' % (chkd_dir, name), 'w') as f:
+        f.write(model.to_json())
+
+    optim = RMSprop()  # make_optimizer(**adam())
+
+    model.compile(
+        optimizer=optim,
+        loss_weights={
+            'bin_out': 1,
+            'vec_out': 1,
+        },
+        metrics={
+            'bin_out': 'binary_accuracy',
+        },
+        loss={'bin_out': 'binary_crossentropy',
+              'vec_out': d_hinge_loss()})
+
+    callbacks = [
+        # ReduceLROnPlateau(
+        # patience=early_stopping_patience / 2,
+        # cooldown=early_stopping_patience / 4,
+        # verbose=1),
+        EarlyStopping(patience=early_stopping_patience, verbose=1),
+    ]
+
+    history_csv = os.path.join(
+        chkd_dir, 'train3_softmax_history_%s.csv' % time.strftime('%d_%m_%Y'))
+    callbacks.extend([
+        ModelCheckpoint(
+            os.path.join(chkd_dir, 'chkpt.{epoch:05d}.va{val_loss:.5f}.hdf5'),
+            save_best_only=True,
+            mode='min',
+            monitor='val_loss'),
+        CSVLogger(os.path.join('.', history_csv))
+    ])
+
+    glog.info('Generator param:: %s',
+              pformat(
+                  dict(
+                      epochs=nb_epoch,
+                      sample_sizes=sample_sizes,
+                      batch_size=batch_size)))
+
+    model.fit_generator(
+        data_generators['train'],
+        sample_sizes['train'] / batch_size,
+        epochs=nb_epoch,
+        validation_data=data_generators['test'],
+        validation_steps=sample_sizes['test'] / batch_size,
+        workers=4,
+        callbacks=callbacks,
+        initial_epoch=model.epoch_num)
 
 
 if __name__ == '__main__':
@@ -210,9 +294,7 @@ if __name__ == '__main__':
         glog.setLevel('DEBUG')
 
     fire.Fire({
-        't': train,
-        't2': train2,
-        't3': train3_softmax,
+        't3': train3_e2e,
         # 'build_speaker_h5': build_speaker_h5,
         # 'build_embedding': build_embedding,
     })

@@ -45,6 +45,8 @@ def pad_data(data, frame_length):
 
     if diff == 0:
         return data
+    elif diff < 0:
+        return data[:frame_length]
 
     assert diff > 0
 
@@ -233,74 +235,124 @@ def speaker_batch_generator_softmax(h5_by_fname,
         yield x, y
 
 
+def _random_speaker_wavfiles(h5_name, wav_names, enroll_k):
+    spk_fnames = np.random.choice(wav_names, enroll_k + 1, replace=False)
+
+    return [(h5_name, wav) for wav in spk_fnames]
+
+
+def _speaker_pair_generator(files_by_speaker, enroll_k, n=250):
+    '''to ensure representative data sample
+    we generate samples as follows:
+
+    For every speaker, we keep positive sample and negative sample
+
+        5 positive sample
+        5 negative sample
+
+    randomly
+    '''
+    all_positive_keys = []
+    all_negative_keys = []
+
+    all_speakers = list(files_by_speaker.keys())
+    for spk in all_speakers:
+        # we generate n neg and n pos samples
+        for i in range(n):
+            h5_name, wav_names = files_by_speaker[spk]
+            spk_wavfiles = _random_speaker_wavfiles(h5_name, wav_names,
+                                                    enroll_k)
+            all_positive_keys.append([(spk, [spk_wavfiles[0]]),
+                                      (spk, spk_wavfiles[1:])])
+
+            utter_spk = np.random.choice(all_speakers)
+            h5_name, wav_names = files_by_speaker[utter_spk]
+            utter_spk_wavfiles = _random_speaker_wavfiles(
+                h5_name, wav_names, 0)
+            all_negative_keys.append([(utter_spk, [utter_spk_wavfiles[0]]),
+                                      (spk, spk_wavfiles[1:])])
+
+    return all_positive_keys, all_negative_keys
+
+
 @threadsafe_generator
-def speaker_batch_generator_e2e(
-        h5_by_fname,
-        all_positive_keys,  # spk = enroll spk
-        all_negative_keys,  # spk != enroll spk
-        frame_length,
-        total_speaker,
-        batch_size,
-        norm=True):
+def speaker_batch_generator_e2e(h5_by_fname,
+                                enroll_k,
+                                all_positive_keys,
+                                all_negative_keys,
+                                frame_length,
+                                total_speaker,
+                                batch_size,
+                                norm=True):
 
     all_keys = all_positive_keys + all_negative_keys
     np.random.shuffle(all_keys)
 
     counter = 0
     while True:
-        batch_inputs = []
-        batch_outputs = []
+        batch_inputs = {
+            'start_utter': [],
+        }
+        for i in range(enroll_k):
+            batch_inputs['start_enroll_%d' % i] = []
+        batch_output_vec = []
+        batch_output_bin = []
 
-        for same_speaker, \
-                (speaker, spk_fname_data_tuple), \
+        for (speaker, spk_fname_data_tuple), \
                 (enroll_speaker, enroll_spk_fname_data_tuple) \
                 in all_keys[counter: counter + batch_size]:
-
+            glog.debug('THERE: %s', enroll_spk_fname_data_tuple)
             enroll_data = [
                 h5_by_fname[h5_fname][data_key].value
                 for (h5_fname, data_key) in enroll_spk_fname_data_tuple
             ]
-            test_data = [
+            glog.debug('HERE: %s', spk_fname_data_tuple)
+            utter_data = [
                 h5_by_fname[h5_fname][data_key].value
-                for (h5_fname, data_key) in enroll_spk_fname_data_tuple
+                for (h5_fname, data_key) in spk_fname_data_tuple
             ]
 
             if frame_length is not None:
-                enroll_data = [(pad_data(data, frame_length)
-                                if len(data) < frame_length else data)
-                               for data in enroll_data]
-                test_data = [(pad_data(data, frame_length)
-                              if len(data) < frame_length else data)
-                             for data in test_data]
+                enroll_data = [
+                    pad_data(data, frame_length) for data in enroll_data
+                ]
+                utter_data = [
+                    pad_data(data, frame_length) for data in utter_data
+                ]
 
             if norm:
                 enroll_data = [
                     data / np.linalg.norm(data, axis=1)[..., np.newaxis]
                     for data in enroll_data
                 ]
-                test_data = [
+                utter_data = [
                     data / np.linalg.norm(data, axis=1)[..., np.newaxis]
-                    for data in test_data
+                    for data in utter_data
                 ]
 
             glog.debug('data:: %s', enroll_data[0].shape, len(enroll_data))
-            glog.debug('data:: %s', test_data[0].shape, len(test_data))
+            glog.debug('data:: %s', utter_data[0].shape, len(utter_data))
 
-            assert len(test_data) == 1
-            batch_inputs.append(np.array(test_data + enroll_data))
-            # (True, False)
-            batch_outputs.append(1 if same_speaker else 0)
+            assert len(utter_data) == 1
+
+            batch_inputs['start_utter'].append(utter_data[0])
+            for i in range(enroll_k):
+                batch_inputs['start_enroll_%d' % i].append(enroll_data[i])
+
+            out = 1 if speaker == enroll_speaker else 0
+            batch_output_vec.append(out)
+            batch_output_bin.append(out)
 
         counter += batch_size
         if counter + batch_size >= len(all_keys):
             np.random.shuffle(all_keys)
             counter = 0
 
-        x = batch_inputs
-        y = one_hot(np.array(batch_outputs, dtype='uint8'), count=2)
+        x = {k: np.array(v) for k, v in batch_inputs.items()}
 
-        glog.debug('x:: %s', x.shape)
-        glog.debug('y:: %s', y.shape)
+        batch_output_vec = np.array(batch_output_vec)
+        batch_output_bin = np.array(batch_output_bin)
+        y = {'bin_out': batch_output_bin, 'vec_out': batch_output_vec}
 
         yield x, y
 

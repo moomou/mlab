@@ -252,7 +252,7 @@ def process_wav(args):
 
     groups = zip_longest(*(iter(fnames), ) * mp.cpu_count())
     for group in groups:
-        if THREAD_POOL != 'SPK':
+        if THREAD_POOL == 'WAV':
             data_duration_tuple = p.map(_encode_data, [(g, mode, sr)
                                                        for g in group if g])
         else:
@@ -261,6 +261,9 @@ def process_wav(args):
             ]
 
         for data, duration in data_duration_tuple:
+            assert not np.isnan(
+                data).any(), 'Invalid data generated:: %s' % group
+
             all_data.append(data)
             total_duration_sec += duration
 

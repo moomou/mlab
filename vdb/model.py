@@ -7,7 +7,10 @@ import keras
 from keras.models import (
     Model,
     load_model, )
-from keras.layers.merge import (add as l_add, multiply as l_multiply)
+from keras.layers.merge import (
+    add as l_add,
+    multiply as l_multiply,
+    average as l_average, )
 from keras.layers import Dense, Dropout, Activation, LSTM, GRU, Reshape
 from keras.layers.noise import GaussianNoise
 from keras.layers import Embedding, Flatten, BatchNormalization
@@ -386,8 +389,51 @@ def build_model6_softmax(input_shape, nb_output_bin, checkpoints_dir=None):
     return model
 
 
-def build_model6_e2e(input_shape, nb_output_bin, checkpoints_dir=None):
-    pass
+def build_model6_e2e(input_shape, enroll_k, checkpoints_dir=None):
+    shape = list(input_shape)
+
+    glog.info('Shape:: %s', shape)
+    utter_out = utter_start = Input(shape=shape, name='start_utter')
+    enroll_inputs = [
+        Input(shape=shape, name='start_enroll_%d' % d) for d in range(enroll_k)
+    ]
+    enroll_outs = enroll_inputs
+
+    # siamese architecture
+    siamese = [
+        Conv2D(2**6, (1, 3), activation='relu'),
+        Conv2D(2**6, (2, 2), padding='same', activation='relu'),
+        Dense(2**7, activation='relu'),
+        Dense(2**7, activation='relu'),
+        AveragePooling2D((1, 2**7), data_format='channels_first'),
+        Flatten(),
+        Dense(2**7, activation='relu'),
+        Dense(2**7, name='dvector'),
+    ]
+
+    for l in siamese:
+        utter_out = l(utter_out)
+        enroll_outs = [l(eo) for eo in enroll_outs]
+    # average all enroll layers
+    enroll_out = l_average(enroll_outs, name='enroll_output')
+
+    vec_out = keras.layers.concatenate([enroll_out, utter_out], name='vec_out')
+    bin_out = Dense(1, activation='sigmoid', name='bin_out')(vec_out)
+
+    model = Model(
+        inputs=([utter_start] + enroll_inputs), outputs=[
+            vec_out,
+            bin_out,
+        ])
+    model.summary()
+
+    if checkpoints_dir:
+        if not _load_checkoint(model, checkpoints_dir):
+            model.epoch_num = 0
+    else:
+        model.epoch_num = 0
+
+    return model
 
 
 if __name__ == '__main__':
@@ -408,6 +454,6 @@ if __name__ == '__main__':
 
     fire.Fire({
         'm': lambda: build_model5(input_shape, 100, kernel_sizes),
-        '6s': lambda: build_model6_softmax((300, 26, 1), 100),
+        '6e': lambda: build_model6_e2e((300, 26, 1), enroll_k=5),
         'crf': compute_receptive_field,
     })
