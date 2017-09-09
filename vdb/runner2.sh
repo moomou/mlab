@@ -1,4 +1,3 @@
 #!/bin/bash
 
-./process_data.py timit TEST mfcc
-./process_data.py timit TRAIN mfcc
+TP=SPK ./process_data.py fff mfcc

@@ -31,7 +31,7 @@ from constant import (
     FFH_JP_ROOT,
     VOICE_ROOT,
     CN_ROOT, )
-from config import THREAD_POOL
+from config import THREAD_POOL, POOL_SIZE
 
 
 def _process_speaker(speaker, wavfiles, h5, mode, aug_option=None):
@@ -322,7 +322,7 @@ def danish_wav(dataset, mode='raw', overwrite=True):
         glog.info(pformat(speaker_stat))
 
 
-p = mp.Pool(mp.cpu_count() // 2)
+p = mp.Pool(POOL_SIZE)
 
 if __name__ == '__main__':
     import fire
