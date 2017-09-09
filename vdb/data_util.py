@@ -13,7 +13,7 @@ from python_speech_features import mfcc, logfbank, delta, ssc
 
 from cache import cache_run
 from constant import VCTK_ROOT, SAMPLE_RATE, MFCC_NB_COEFFICIENTS
-from config import THREAD_POOL
+from config import THREAD_POOL, POOL_SIZE
 
 SSC_CONFIG = {}
 MFCC_CONFIG = {
@@ -27,7 +27,7 @@ FBANK_CONFIG = {
 S2N_RATIO = [5, 10]  # 10, 15
 PLAY_BACK_SPEED = [1, 1.05]
 
-DATA_VERSION = 6
+DATA_VERSION = 7
 
 
 class DataMode(Enum):
@@ -250,7 +250,7 @@ def process_wav(args):
     all_data = []
     total_duration_sec = 0
 
-    groups = zip_longest(*(iter(fnames), ) * mp.cpu_count())
+    groups = zip_longest(*(iter(fnames), ) * POOL_SIZE)
     for group in groups:
         if THREAD_POOL == 'WAV':
             data_duration_tuple = p.map(_encode_data, [(g, mode, sr)
@@ -270,7 +270,7 @@ def process_wav(args):
     return total_duration_sec, all_data
 
 
-p = mp.Pool(mp.cpu_count() // 2)
+p = mp.Pool(POOL_SIZE)
 if __name__ == '__main__':
     import fire
 

@@ -38,7 +38,7 @@ def _process_speaker(speaker, wavfiles, h5, mode, aug_option=None):
     counter = 0
     total_duration_sec = 0
 
-    wavfiles_group = zip_longest(*(iter(wavfiles), ) * mp.cpu_count())
+    wavfiles_group = zip_longest(*(iter(wavfiles), ) * POOL_SIZE)
 
     for names in tqdm(wavfiles_group, desc='files', position=1):
         if THREAD_POOL == 'SPK':
