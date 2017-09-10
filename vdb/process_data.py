@@ -151,9 +151,9 @@ def vctk(mode='raw'):
     glog.info(pformat(speaker_stat))
 
 
-def _ffh(h5_name, root, mode='raw', overwrite=False, noise=None):
+def _ffh(h5_fn, root, mode, overwrite=False, noise=None):
     mode = getattr(DataMode, mode)
-
+    h5_name = h5_fn(mode, noise)
     all_bg = _all_bg() if noise else None
     with h5py.File(h5_name, mode='a') as h5:
         _, episodes = next(os.walk(FFH_JP_ROOT))[:2]
@@ -187,11 +187,11 @@ def _ffh(h5_name, root, mode='raw', overwrite=False, noise=None):
 
 
 def ffh_en(mode='raw', overwrite=False, noise=None):
-    _ffh(ffh_en_h5_fname(mode, noise), FFH_EN_ROOT, overwrite, noise)
+    _ffh(ffh_en_h5_fname, FFH_EN_ROOT, mode, overwrite, noise)
 
 
 def ffh_jp(mode='raw', overwrite=False, noise=None):
-    _ffh(ffh_jp_h5_fname(mode, noise), FFH_JP_ROOT, overwrite, noise)
+    _ffh(ffh_jp_h5_fname, FFH_JP_ROOT, mode, overwrite, noise)
 
 
 def fff_en(mode='raw', overwrite=True):
@@ -341,6 +341,7 @@ if __name__ == '__main__':
         'timit': timit,
         'voice': voice,
         'fff': fff_en,
-        'ffh': ffh_jp,
+        'ffhj': ffh_jp,
+        'ffhe': ffh_en,
         'bg': _all_bg,
     })

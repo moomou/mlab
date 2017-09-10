@@ -27,7 +27,7 @@ FBANK_CONFIG = {
 S2N_RATIO = [5, 10]  # 10, 15
 PLAY_BACK_SPEED = [1, 1.05]
 
-DATA_VERSION = 7
+DATA_VERSION = 8
 
 
 class DataMode(Enum):
