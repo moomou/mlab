@@ -97,10 +97,14 @@ def get_speaker_generators_softmax(all_h5s, frame_length, batch_size):
     }, total_speaker
 
 
-def get_speaker_generators_e2e(all_h5s, frame_length, batch_size, enroll_k):
-    train_by_speaker = defaultdict(list)
-    test_by_speaker = defaultdict(list)
-
+def get_speaker_generators_e2e(all_h5s,
+                               frame_length,
+                               batch_size,
+                               enroll_k,
+                               train_size=50e3):
+    all_speaker_files = defaultdict(list)
+    train_speakers = None
+    test_speakers = None
     h5_by_fname = {}
 
     for fname, h5 in all_h5s:
@@ -113,18 +117,15 @@ def get_speaker_generators_e2e(all_h5s, frame_length, batch_size, enroll_k):
             speaker_id = create_speaker_id(fname[:13], k)
 
             glist = list(g)
-            train_len = int(len(glist) * 0.8)
-            test_len = len(glist) - train_len
+            assert len(glist) > 0
 
-            assert test_len > 0 and train_len > 0
+            if len(glist) >= enroll_k + 1:
+                all_speaker_files[speaker_id] = (fname, glist)
 
-            train_by_speaker[speaker_id] = (fname, glist[:train_len])
-            test_by_speaker[speaker_id] = (fname, glist[train_len:])
-
-    all_pos_train_keys, all_neg_train_keys = _speaker_pair_generator(
-        train_by_speaker, enroll_k)
-    all_pos_test_keys, all_neg_test_keys = _speaker_pair_generator(
-        test_by_speaker, enroll_k)
+    all_keys = list(all_speaker_files.keys())
+    train_len = int(len(all_keys) * 0.8)
+    train_speakers = all_keys[:train_len]
+    test_speakers = all_keys[train_len:]
 
     total_speaker = get_total_speaker()
     glog.debug('Total speaker:: %s' % total_speaker)
@@ -134,8 +135,8 @@ def get_speaker_generators_e2e(all_h5s, frame_length, batch_size, enroll_k):
         speaker_batch_generator_e2e(
             h5_by_fname,
             enroll_k,
-            all_pos_train_keys,
-            all_neg_train_keys,
+            all_speaker_files,
+            train_speakers,
             frame_length,
             total_speaker,
             batch_size=batch_size),
@@ -143,14 +144,14 @@ def get_speaker_generators_e2e(all_h5s, frame_length, batch_size, enroll_k):
         speaker_batch_generator_e2e(
             h5_by_fname,
             enroll_k,
-            all_pos_test_keys,
-            all_neg_test_keys,
+            all_speaker_files,
+            test_speakers,
             frame_length,
             total_speaker,
             batch_size=batch_size),
     }, {
-        'train': len(all_pos_train_keys) + len(all_pos_train_keys),
-        'test': len(all_pos_test_keys) + len(all_pos_test_keys),
+        'train': int(train_size),
+        'test': int(train_size / 5),
     }, total_speaker
 
 

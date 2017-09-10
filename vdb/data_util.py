@@ -80,6 +80,11 @@ def ffh_jp_h5_fname(mode, noise=True):
                                       if noise is None else '_n')
 
 
+def ffh_en_h5_fname(mode, noise=True):
+    return 'ffh_en_%d_%s_@%s%s.h5' % (DATA_VERSION, mode.name, SAMPLE_RATE, ''
+                                      if noise is None else '_n')
+
+
 def voice_h5_fname(mode, noise=True):
     return 'voice_%d_%s_@%s%s.h5' % (DATA_VERSION, mode.name, SAMPLE_RATE, ''
                                      if noise is None else '_n')
@@ -261,6 +266,10 @@ def process_wav(args):
             ]
 
         for data, duration in data_duration_tuple:
+            if duration < 0.7:
+                # skip data with less than 800ms
+                continue
+
             assert not np.isnan(
                 data).any(), 'Invalid data generated:: %s' % group
 

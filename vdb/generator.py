@@ -50,7 +50,7 @@ def pad_data(data, frame_length):
 
     assert diff > 0
 
-    return np.pad(data, ((diff, 0), (0, 0), (0, 0)), 'constant')
+    return np.pad(data, ((diff, 0), (0, 0), (0, 0)), 'symmetric')
 
 
 @threadsafe_generator
@@ -241,7 +241,8 @@ def _random_speaker_wavfiles(h5_name, wav_names, enroll_k):
     return [(h5_name, wav) for wav in spk_fnames]
 
 
-def _speaker_pair_generator(files_by_speaker, enroll_k, n=250):
+def _speaker_pair_generator(files_by_speaker, all_speakers, enroll_k,
+                            batch_size):
     '''to ensure representative data sample
     we generate samples as follows:
 
@@ -255,22 +256,18 @@ def _speaker_pair_generator(files_by_speaker, enroll_k, n=250):
     all_positive_keys = []
     all_negative_keys = []
 
-    all_speakers = list(files_by_speaker.keys())
-    for spk in all_speakers:
-        # we generate n neg and n pos samples
-        for i in range(n):
-            h5_name, wav_names = files_by_speaker[spk]
-            spk_wavfiles = _random_speaker_wavfiles(h5_name, wav_names,
-                                                    enroll_k)
-            all_positive_keys.append([(spk, [spk_wavfiles[0]]),
-                                      (spk, spk_wavfiles[1:])])
+    for i in range(batch_size // 2):
+        spk, utter_spk = np.random.choice(all_speakers, 2, replace=False)
 
-            utter_spk = np.random.choice(all_speakers)
-            h5_name, wav_names = files_by_speaker[utter_spk]
-            utter_spk_wavfiles = _random_speaker_wavfiles(
-                h5_name, wav_names, 0)
-            all_negative_keys.append([(utter_spk, [utter_spk_wavfiles[0]]),
-                                      (spk, spk_wavfiles[1:])])
+        h5_name, wav_names = files_by_speaker[spk]
+        spk_wavfiles = _random_speaker_wavfiles(h5_name, wav_names, enroll_k)
+        all_positive_keys.append([(spk, [spk_wavfiles[0]]),
+                                  (spk, spk_wavfiles[1:])])
+
+        h5_name, wav_names = files_by_speaker[utter_spk]
+        utter_spk_wavfiles = _random_speaker_wavfiles(h5_name, wav_names, 0)
+        all_negative_keys.append([(utter_spk, [utter_spk_wavfiles[0]]),
+                                  (spk, spk_wavfiles[1:])])
 
     return all_positive_keys, all_negative_keys
 
@@ -278,18 +275,20 @@ def _speaker_pair_generator(files_by_speaker, enroll_k, n=250):
 @threadsafe_generator
 def speaker_batch_generator_e2e(h5_by_fname,
                                 enroll_k,
-                                all_positive_keys,
-                                all_negative_keys,
+                                files_by_speaker,
+                                speaker_keys,
                                 frame_length,
                                 total_speaker,
                                 batch_size,
                                 norm=True):
 
-    all_keys = all_positive_keys + all_negative_keys
-    np.random.shuffle(all_keys)
-
-    counter = 0
     while True:
+        all_positive_keys, all_negative_keys = _speaker_pair_generator(
+            files_by_speaker, speaker_keys, enroll_k, batch_size)
+        all_keys = all_positive_keys + all_negative_keys
+
+        np.random.shuffle(all_keys)
+
         batch_inputs = {
             'start_utter': [],
         }
@@ -300,7 +299,7 @@ def speaker_batch_generator_e2e(h5_by_fname,
 
         for (speaker, spk_fname_data_tuple), \
                 (enroll_speaker, enroll_spk_fname_data_tuple) \
-                in all_keys[counter: counter + batch_size]:
+                in all_keys:
             glog.debug('THERE: %s', enroll_spk_fname_data_tuple)
             enroll_data = [
                 h5_by_fname[h5_fname][data_key].value
@@ -342,11 +341,6 @@ def speaker_batch_generator_e2e(h5_by_fname,
             out = 1 if speaker == enroll_speaker else 0
             batch_output_vec.append(out)
             batch_output_bin.append(out)
-
-        counter += batch_size
-        if counter + batch_size >= len(all_keys):
-            np.random.shuffle(all_keys)
-            counter = 0
 
         x = {k: np.array(v) for k, v in batch_inputs.items()}
 

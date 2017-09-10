@@ -13,14 +13,15 @@ from pydub import AudioSegment
 
 from data_util import (
     DataMode,
+    cn_wav_h5_fname,
+    dan_h5_fname,
+    fff_en_h5_fname,
+    ffh_en_h5_fname,
+    ffh_jp_h5_fname,
     process_wav,
     timit_h5_fname,
-    dan_h5_fname,
     vctk_h5_fname,
-    ffh_jp_h5_fname,
-    fff_en_h5_fname,
-    voice_h5_fname,
-    cn_wav_h5_fname, )
+    voice_h5_fname, )
 
 from constant import (
     VCTK_ROOT,
@@ -29,6 +30,7 @@ from constant import (
     NOISE_ROOT,
     FFF_EN_ROOT,
     FFH_JP_ROOT,
+    FFH_EN_ROOT,
     VOICE_ROOT,
     CN_ROOT, )
 from config import THREAD_POOL, POOL_SIZE
@@ -149,18 +151,17 @@ def vctk(mode='raw'):
     glog.info(pformat(speaker_stat))
 
 
-def ffh_jp(mode='raw', overwrite=False):
+def _ffh(h5_name, root, mode='raw', overwrite=False, noise=None):
     mode = getattr(DataMode, mode)
-    h5_name = ffh_jp_h5_fname(mode)
 
-    all_bg = _all_bg()
+    all_bg = _all_bg() if noise else None
     with h5py.File(h5_name, mode='a') as h5:
         _, episodes = next(os.walk(FFH_JP_ROOT))[:2]
 
         all_files = []
         for episode in episodes:
-            root, _, files = next(os.walk(os.path.join(FFH_JP_ROOT, episode)))
-            all_files.extend([os.path.join(root, f) for f in files])
+            for (dirname, _, files) in os.walk(os.path.join(root, episode)):
+                all_files.extend([os.path.join(dirname, f) for f in files])
 
         sorted(all_files)
         files_by_speaker = defaultdict(list)
@@ -183,6 +184,14 @@ def ffh_jp(mode='raw', overwrite=False):
 
         glog.info('\n' * 10)
         glog.info(pformat(speaker_stat))
+
+
+def ffh_en(mode='raw', overwrite=False, noise=None):
+    _ffh(ffh_en_h5_fname(mode, noise), FFH_EN_ROOT, overwrite, noise)
+
+
+def ffh_jp(mode='raw', overwrite=False, noise=None):
+    _ffh(ffh_jp_h5_fname(mode, noise), FFH_JP_ROOT, overwrite, noise)
 
 
 def fff_en(mode='raw', overwrite=True):

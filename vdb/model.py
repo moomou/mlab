@@ -8,6 +8,7 @@ from keras.models import (
     Model,
     load_model, )
 from keras.layers.merge import (
+    Dot as l_dot,
     add as l_add,
     multiply as l_multiply,
     average as l_average, )
@@ -401,14 +402,20 @@ def build_model6_e2e(input_shape, enroll_k, checkpoints_dir=None):
 
     # siamese architecture
     siamese = [
-        Conv2D(2**6, (1, 3), activation='relu'),
+        Conv2D(2**6, (3, 3), activation='relu'),
         Conv2D(2**6, (2, 2), padding='same', activation='relu'),
         Dense(2**7, activation='relu'),
         Dense(2**7, activation='relu'),
+        Dropout(0.5),
+        Conv2D(2**6, (3, 3), activation='relu'),
+        Conv2D(2**6, (2, 2), padding='same', activation='relu'),
+        Dense(2**7, activation='relu'),
+        Dense(2**7, activation='relu'),
+        Dropout(0.5),
         AveragePooling2D((1, 2**7), data_format='channels_first'),
         Flatten(),
-        Dense(2**7, activation='relu'),
-        Dense(2**7, name='dvector'),
+        Dense(2**7, activation='relu', activity_regularizer=reg.l2(0.01)),
+        Dense(2**7, name='dvector', activity_regularizer=reg.l2(0.01)),
     ]
 
     for l in siamese:
@@ -417,12 +424,13 @@ def build_model6_e2e(input_shape, enroll_k, checkpoints_dir=None):
     # average all enroll layers
     enroll_out = l_average(enroll_outs, name='enroll_output')
 
-    vec_out = keras.layers.concatenate([enroll_out, utter_out], name='vec_out')
-    bin_out = Dense(1, activation='sigmoid', name='bin_out')(vec_out)
+    cosdist = l_dot(axes=-1, normalize=True)([enroll_out, utter_out])
+    bin_out = Dense(1, activation='sigmoid', name='bin_out')(cosdist)
 
     model = Model(
-        inputs=([utter_start] + enroll_inputs), outputs=[
-            vec_out,
+        inputs=([utter_start] + enroll_inputs),
+        outputs=[
+            # vec_out,
             bin_out,
         ])
     model.summary()

@@ -66,9 +66,7 @@ def categorical_mean_squared_error(y_true, y_pred):
         K.square(K.argmax(y_true, axis=-1) - K.argmax(y_pred, axis=-1)))
 
 
-def d_hinge_loss(p=0., n=0.7):
-    import tensorflow as tf
-
+def d_hinge_loss(p=0., n=3.):
     def _d_hinge_loss(y_true, y_pred):
         # Euclidean distance between x1,x2
         y_pred = K.l2_normalize(y_pred, axis=-1)
@@ -139,8 +137,8 @@ def _train3_setup(frame_length):
         # timit_h5_fname('test', DataMode.mfcc, noise=True),
         # timit_h5_fname('train', DataMode.mfcc, noise=True),
         # vctk_h5_fname(DataMode.mfcc_delta)
-        # fff_en_h5_fname(DataMode.mfcc, noise=True),
-        ffh_jp_h5_fname(DataMode.mfcc, noise=True),
+        fff_en_h5_fname(DataMode.mfcc, noise=None),
+        ffh_jp_h5_fname(DataMode.mfcc, noise=None),
     ]
     h5s = [os.path.join('./h5s', f) for f in h5s]
     name_h5_tuples = []
@@ -242,13 +240,15 @@ def train3_e2e(name,
         optimizer=optim,
         loss_weights={
             'bin_out': 1,
-            'vec_out': 1,
+            # 'vec_out': 1,
         },
         metrics={
             'bin_out': 'binary_accuracy',
         },
-        loss={'bin_out': 'binary_crossentropy',
-              'vec_out': d_hinge_loss()})
+        loss={
+            'bin_out': 'binary_crossentropy',
+        })
+    # 'vec_out': d_hinge_loss()})
 
     callbacks = [
         # ReduceLROnPlateau(
