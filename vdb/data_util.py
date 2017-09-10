@@ -18,6 +18,7 @@ from config import THREAD_POOL, POOL_SIZE
 SSC_CONFIG = {}
 MFCC_CONFIG = {
     'numcep': MFCC_NB_COEFFICIENTS,
+    'nfilt': MFCC_NB_COEFFICIENTS,
 }
 
 FBANK_CONFIG = {
@@ -91,7 +92,12 @@ def voice_h5_fname(mode, noise=True):
 
 
 def split_file(filename):
-    basename, ext = os.path.basename(filename).split('.')
+    try:
+        basename, ext = os.path.basename(filename).split('.')
+    except:
+        glog.info(filename) 
+        raise
+
     src = AudioSegment.from_file(filename)
 
     splits = []

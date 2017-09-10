@@ -90,11 +90,11 @@ def _all_bg():
     return _all_bg_cache
 
 
-def timit(dataset, mode='raw', overwrite=True):
+def timit(dataset, mode='raw', overwrite=True, noise=None):
     mode = getattr(DataMode, mode)
-    fname = timit_h5_fname(dataset, mode)
+    fname = timit_h5_fname(dataset, mode, noise)
 
-    all_bg = _all_bg()
+    all_bg = _all_bg() if noise else None
 
     with h5py.File(fname, mode='a') as h5:
         speaker_stat = {}
@@ -161,7 +161,10 @@ def _ffh(h5_fn, root, mode, overwrite=False, noise=None):
         all_files = []
         for episode in episodes:
             for (dirname, _, files) in os.walk(os.path.join(root, episode)):
-                all_files.extend([os.path.join(dirname, f) for f in files])
+                if 'aug' in dirname:
+                    glog.warn('Skipping %s', dirname)
+                    continue
+                all_files.extend([os.path.join(dirname, f) for f in files if '/aug/' not in f])
 
         sorted(all_files)
         files_by_speaker = defaultdict(list)
