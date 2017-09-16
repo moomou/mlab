@@ -401,37 +401,57 @@ def build_model6_e2e(input_shape, enroll_k, checkpoints_dir=None):
     enroll_outs = enroll_inputs
 
     # siamese architecture
-    siamese = [
-        Conv2D(2**6, (3, 3), activation='relu'),
-        Conv2D(2**6, (2, 2), padding='same', activation='relu'),
-        Dense(2**7, activation='relu'),
+    siamese_lower = [
+        # 2** 7
+        Conv2D(
+            2**7, (3, 3),
+            dilation_rate=(3, 1),
+            padding='same',
+            activation='relu'),
+        Conv2D(
+            2**7, (1, 1),
+            dilation_rate=(3, 1),
+            padding='same',
+            activation='relu'),
+    ]
+    siamese_upper = [
         Dense(2**7, activation='relu'),
         Dropout(0.5),
-        Conv2D(2**6, (3, 3), activation='relu'),
-        Conv2D(2**6, (2, 2), padding='same', activation='relu'),
-        Dense(2**7, activation='relu'),
         Dense(2**7, activation='relu'),
         Dropout(0.5),
         AveragePooling2D((1, 2**7), data_format='channels_first'),
         Flatten(),
-        Dense(2**7, activation='relu', activity_regularizer=reg.l2(0.01)),
         Dense(2**7, name='dvector', activity_regularizer=reg.l2(0.01)),
     ]
 
-    for l in siamese:
+    for l in siamese_lower:
         utter_out = l(utter_out)
         enroll_outs = [l(eo) for eo in enroll_outs]
+
+    # skip connection
+    # utter_out = l_add([utter_out, utter_start])
+    # enroll_outs = [
+    # l_add([enroll_outs[idx], enroll_inputs[idx]])
+    # for idx in range(enroll_k)
+    # ]
+
+    for l in siamese_upper:
+        utter_out = l(utter_out)
+        enroll_outs = [l(eo) for eo in enroll_outs]
+
     # average all enroll layers
     enroll_out = l_average(enroll_outs, name='enroll_output')
 
-    cosdist = l_dot(axes=-1, normalize=True)([enroll_out, utter_out])
-    bin_out = Dense(1, activation='sigmoid', name='bin_out')(cosdist)
+    cosdist = l_dot(
+        axes=-1, normalize=True, name='cosdist')([enroll_out, utter_out])
+    # bin_out = Dense(1, activation='sigmoid', name='bin_out')(cosdist)
 
     model = Model(
         inputs=([utter_start] + enroll_inputs),
         outputs=[
             # vec_out,
-            bin_out,
+            # bin_out,
+            cosdist,
         ])
     model.summary()
 
@@ -462,6 +482,6 @@ if __name__ == '__main__':
 
     fire.Fire({
         'm': lambda: build_model5(input_shape, 100, kernel_sizes),
-        '6e': lambda: build_model6_e2e((300, 26, 1), enroll_k=5),
+        '6e': lambda: build_model6_e2e((300, 40, 1), enroll_k=5),
         'crf': compute_receptive_field,
     })

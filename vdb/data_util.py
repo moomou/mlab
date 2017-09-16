@@ -95,7 +95,7 @@ def split_file(filename):
     try:
         basename, ext = os.path.basename(filename).split('.')
     except:
-        glog.info(filename) 
+        glog.info(filename)
         raise
 
     src = AudioSegment.from_file(filename)
@@ -203,7 +203,7 @@ def _encode_data(args):
     filename, mode, sr = args
 
     data, sr = librosa.core.load(filename, sr=sr)
-    data, _ = librosa.effects.trim(data)
+    data, _ = librosa.effects.trim(data, top_db=15)
     duration = librosa.get_duration(y=data, sr=sr)
 
     if mode.name.startswith('spec'):

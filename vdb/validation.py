@@ -122,7 +122,7 @@ def _voice(enroll_k):
     return _generate_utter_enroll_set(segmented_files_by_speaker, enroll_k)
 
 
-def gen(dataset, enroll_k=5):
+def gen(dataset, enroll_k=4):
     fn = {
         'cn': _cn,
         'voice': _voice,

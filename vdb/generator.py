@@ -346,7 +346,11 @@ def speaker_batch_generator_e2e(h5_by_fname,
 
         batch_output_vec = np.array(batch_output_vec)
         batch_output_bin = np.array(batch_output_bin)
-        y = {'bin_out': batch_output_bin, 'vec_out': batch_output_vec}
+        y = {
+            'bin_out': batch_output_bin,
+            'vec_out': batch_output_vec,
+            'cosdist': batch_output_vec
+        }
 
         yield x, y
 

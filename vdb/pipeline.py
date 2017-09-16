@@ -123,12 +123,13 @@ def get_speaker_generators_e2e(all_h5s,
                 all_speaker_files[speaker_id] = (fname, glist)
 
     all_keys = list(all_speaker_files.keys())
+    np.random.choice(all_keys)
     train_len = int(len(all_keys) * 0.8)
     train_speakers = all_keys[:train_len]
     test_speakers = all_keys[train_len:]
 
     total_speaker = get_total_speaker()
-    glog.debug('Total speaker:: %s' % total_speaker)
+    glog.info('Total speaker:: %s' % total_speaker)
 
     return {
         'train':

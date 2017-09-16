@@ -34,6 +34,7 @@ from data_util import (
     vctk_h5_fname,
     fff_en_h5_fname,
     ffh_jp_h5_fname,
+    ffh_en_h5_fname,
     voice_h5_fname, )
 from model import (
     build_model,
@@ -66,20 +67,28 @@ def categorical_mean_squared_error(y_true, y_pred):
         K.square(K.argmax(y_true, axis=-1) - K.argmax(y_pred, axis=-1)))
 
 
-def d_hinge_loss(p=0., n=3.):
+def binary_accuracy(dist=0.99):
+    def _binary_accuracy(y_true, y_pred):
+        true = y_true == 1
+        pred = y_pred >= dist
+
+        return K.mean(K.equal(true, pred))
+
+    return _binary_accuracy
+
+
+def d_hinge_loss(p=5., n=1., dist=0.99):
+    bin_loss_fn = binary_accuracy(dist)
+
     def _d_hinge_loss(y_true, y_pred):
-        # Euclidean distance between x1,x2
-        y_pred = K.l2_normalize(y_pred, axis=-1)
-        l2diff = tf.sqrt(
-            tf.reduce_sum(
-                tf.square(tf.subtract(y_pred[:, :128], y_pred[:, 128:])),
-                reduction_indices=1))
+        match_loss = p * K.maximum(0., dist - y_pred)
+        mismatch_loss = n * K.maximum(0., y_pred)
 
-        match_loss = K.maximum(0., p + l2diff)
-        mismatch_loss = K.maximum(0., n - l2diff)
-
-        return K.mean(
+        vec_loss = K.mean(
             y_true * match_loss + (1. - y_true) * mismatch_loss, axis=-1)
+        bin_loss = bin_loss_fn(y_true, y_pred)
+
+        return vec_loss + 0.2 * bin_loss
 
     return _d_hinge_loss
 
@@ -134,10 +143,11 @@ def _train3_setup(frame_length):
 
     # data files
     h5s = [
-        # timit_h5_fname('test', DataMode.mfcc, noise=True),
+        timit_h5_fname('test', DataMode.mfcc, noise=None),
         # timit_h5_fname('train', DataMode.mfcc, noise=True),
         # vctk_h5_fname(DataMode.mfcc_delta)
-        fff_en_h5_fname(DataMode.mfcc, noise=None),
+        # fff_en_h5_fname(DataMode.mfcc, noise=None),
+        ffh_en_h5_fname(DataMode.mfcc, noise=None),
         ffh_jp_h5_fname(DataMode.mfcc, noise=None),
     ]
     h5s = [os.path.join('./h5s', f) for f in h5s]
@@ -217,12 +227,13 @@ def train3_softmax(name,
 
 def train3_e2e(name,
                frame_length,
-               enroll_k=4,
+               enroll_k=3,
                nb_epoch=1000,
                batch_size=72,
                early_stopping_patience=24,
                chkd_dir=CHECKPT_DIR):
 
+    enroll_k = int(enroll_k)
     input_shape, h5s = _train3_setup(frame_length)
 
     data_generators, sample_sizes, output_size = \
@@ -239,14 +250,14 @@ def train3_e2e(name,
     model.compile(
         optimizer=optim,
         loss_weights={
-            'bin_out': 1,
+            'cosdist': 1,
             # 'vec_out': 1,
         },
-        metrics={
-            'bin_out': 'binary_accuracy',
-        },
+        metrics=[
+            binary_accuracy(),
+        ],
         loss={
-            'bin_out': 'binary_crossentropy',
+            'cosdist': d_hinge_loss(),
         })
     # 'vec_out': d_hinge_loss()})
 
