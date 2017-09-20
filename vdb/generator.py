@@ -46,10 +46,12 @@ def pad_data(data, frame_length):
     if diff == 0:
         return data
     elif diff < 0:
-        return data[:frame_length]
+        # pick a random starting spot
+        start = np.random.randint(0, abs(diff))
+        assert start + frame_length < cur_frame_len
+        return data[start:start + frame_length]
 
     assert diff > 0
-
     return np.pad(data, ((diff, 0), (0, 0), (0, 0)), 'symmetric')
 
 
@@ -241,6 +243,12 @@ def _random_speaker_wavfiles(h5_name, wav_names, enroll_k):
     return [(h5_name, wav) for wav in spk_fnames]
 
 
+def random_speaker_wavfiles(spk, files_by_speaker, enroll_k):
+    h5_name, wav_names = files_by_speaker[spk]
+    spk_wavfiles = _random_speaker_wavfiles(h5_name, wav_names, enroll_k)
+    return spk_wavfiles
+
+
 def _speaker_pair_generator(files_by_speaker, all_speakers, enroll_k,
                             batch_size):
     '''to ensure representative data sample
@@ -270,6 +278,32 @@ def _speaker_pair_generator(files_by_speaker, all_speakers, enroll_k,
                                   (spk, spk_wavfiles[1:])])
 
     return all_positive_keys, all_negative_keys
+
+
+def _speaker_triplet_generator(files_by_speaker, all_speakers, enroll_k,
+                               batch_size):
+    '''to ensure representative data sample
+    we generate samples as follows:
+
+    For every speaker, we keep positive sample and negative sample
+
+    all_keys = [
+        (x, xp, xn),
+    ]
+    '''
+    all_keys = []
+
+    for i in range(batch_size // 2):
+        spk, other_spk = np.random.choice(all_speakers, 2, replace=False)
+
+        spk_wavfiles = random_speaker_wavfiles(spk, files_by_speaker, enroll_k)
+        other_spk_wavfiles = random_speaker_wavfiles(
+            other_spk, files_by_speaker, enroll_k)
+
+        all_keys.append((spk_wavfiles[0], spk_wavfiles[1],
+                         other_spk_wavfiles[0]))
+
+    return all_keys
 
 
 @threadsafe_generator
@@ -351,6 +385,64 @@ def speaker_batch_generator_e2e(h5_by_fname,
             'vec_out': batch_output_vec,
             'cosdist': batch_output_vec
         }
+
+        yield x, y
+
+
+@threadsafe_generator
+def speaker_batch_generator_e2e_triplet(h5_by_fname,
+                                        enroll_k,
+                                        files_by_speaker,
+                                        speaker_keys,
+                                        frame_length,
+                                        total_speaker,
+                                        batch_size,
+                                        norm=True):
+    def _fetch_data(data_tuple):
+        data = [
+            h5_by_fname[h5_fname][data_key].value
+            for (h5_fname, data_key) in data_tuple
+        ]
+
+        if frame_length is not None:
+            data = [pad_data(d, frame_length) for d in data]
+        if norm:
+            data = [
+                data / np.linalg.norm(data, axis=1)[..., np.newaxis]
+                for d in data
+            ]
+
+        return data
+
+    while True:
+        all_keys = _speaker_triplet_generator(files_by_speaker, speaker_keys,
+                                              enroll_k, batch_size)
+
+        np.random.shuffle(all_keys)
+
+        batch_inputs = {
+            'x': [],
+            'xp': [],
+            'xn': [],
+        }
+        batch_output = []
+
+        for x_fname_data_tuple, xp_fname_data_tuple, xn_fname_data_tuple in all_keys:
+            glog.debug('THERE: %s', x_fname_data_tuple)
+            x_data = _fetch_data(x_fname_data_tuple)
+            xp_data = _fetch_data(xp_fname_data_tuple)
+            xn_data = _fetch_data(x_fname_data_tuple)
+
+            glog.debug('data:: %s', x_data[0].shape, len(x_data))
+
+            batch_inputs['x'].append(x_data)
+            batch_inputs['xp'].append(xp_data)
+            batch_inputs['xn'].append(xn_data)
+
+            batch_output.append((0, 0, 0))
+
+        x = {k: np.array(v) for k, v in batch_inputs.items()}
+        y = {'merged': batch_output}
 
         yield x, y
 

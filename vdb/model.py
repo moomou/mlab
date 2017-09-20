@@ -11,7 +11,8 @@ from keras.layers.merge import (
     Dot as l_dot,
     add as l_add,
     multiply as l_multiply,
-    average as l_average, )
+    average as l_average,
+    concatenate as l_concat, )
 from keras.layers import Dense, Dropout, Activation, LSTM, GRU, Reshape
 from keras.layers.noise import GaussianNoise
 from keras.layers import Embedding, Flatten, BatchNormalization
@@ -452,6 +453,72 @@ def build_model6_e2e(input_shape, enroll_k, checkpoints_dir=None):
             # vec_out,
             # bin_out,
             cosdist,
+        ])
+    model.summary()
+
+    if checkpoints_dir:
+        if not _load_checkoint(model, checkpoints_dir):
+            model.epoch_num = 0
+    else:
+        model.epoch_num = 0
+
+    return model
+
+
+def build_model7_e2e(input_shape, checkpoints_dir=None):
+    shape = list(input_shape)
+
+    glog.info('Shape:: %s', shape)
+
+    x_out = x = Input(shape=shape, name='x')
+    xp_out = xp = Input(shape=shape, name='xp')
+    xn_out = xn = Input(shape=shape, name='xn')
+
+    # siamese architecture
+    siamese_lower = [
+        Conv2D(
+            2**7, (3, 3),
+            dilation_rate=(3, 1),
+            padding='same',
+            activation='relu'),
+        Conv2D(
+            2**7, (1, 1),
+            dilation_rate=(3, 1),
+            padding='same',
+            activation='relu'),
+    ]
+    siamese_upper = [
+        Dense(2**7, activation='relu'),
+        Dropout(0.5),
+        Dense(2**7, activation='relu'),
+        Dropout(0.5),
+        AveragePooling2D((1, 2**7), data_format='channels_first'),
+        Flatten(),
+        Dense(2**7, name='dvector', activity_regularizer=reg.l2(0.01)),
+    ]
+
+    for l in siamese_lower:
+        x_out = l(x_out)
+        xp_out = l(xp_out)
+        xn_out = l(xn_out)
+
+    # skip connection
+    # utter_out = l_add([utter_out, utter_start])
+    # enroll_outs = [
+    # l_add([enroll_outs[idx], enroll_inputs[idx]])
+    # for idx in range(enroll_k)
+    # ]
+
+    for l in siamese_upper:
+        x_out = l(x_out)
+        xp_out = l(xp_out)
+        xn_out = l(xn_out)
+
+    merged = l_concat([x_out, xp_out, xn_out], axis=-1)
+
+    model = Model(
+        inputs=[x, xp, xn], outputs=[
+            merged,
         ])
     model.summary()
 

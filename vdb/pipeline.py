@@ -13,6 +13,7 @@ from generator import (
     speaker_batch_generator,
     speaker_batch_generator_softmax,
     speaker_batch_generator_e2e,
+    speaker_batch_generator_e2e_triplet,
     _speaker_pair_generator, )
 from speaker_id import create_speaker_id, get_total_speaker
 
@@ -100,8 +101,9 @@ def get_speaker_generators_softmax(all_h5s, frame_length, batch_size):
 def get_speaker_generators_e2e(all_h5s,
                                frame_length,
                                batch_size,
-                               enroll_k,
-                               train_size=50e3):
+                               enroll_k=3,
+                               train_size=640e3,
+                               triplet_loss=False):
     all_speaker_files = defaultdict(list)
     train_speakers = None
     test_speakers = None
@@ -131,9 +133,11 @@ def get_speaker_generators_e2e(all_h5s,
     total_speaker = get_total_speaker()
     glog.info('Total speaker:: %s' % total_speaker)
 
+    gen_fn = speaker_batch_generator_e2e_triplet if triplet_loss else speaker_batch_generator_e2e
+
     return {
         'train':
-        speaker_batch_generator_e2e(
+        gen_fn(
             h5_by_fname,
             enroll_k,
             all_speaker_files,
@@ -142,7 +146,7 @@ def get_speaker_generators_e2e(all_h5s,
             total_speaker,
             batch_size=batch_size),
         'test':
-        speaker_batch_generator_e2e(
+        gen_fn(
             h5_by_fname,
             enroll_k,
             all_speaker_files,
@@ -152,7 +156,7 @@ def get_speaker_generators_e2e(all_h5s,
             batch_size=batch_size),
     }, {
         'train': int(train_size),
-        'test': int(train_size / 5),
+        'test': train_size // 10,
     }, total_speaker
 
 

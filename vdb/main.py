@@ -44,8 +44,10 @@ from model import (
     build_model5,
     build_model6_softmax,
     build_model6_e2e,
+    build_model7_e2e,
     load_model_h5,
     compute_receptive_field, )
+from loss import *
 from generator import one_hot
 from pipeline import (
     get_speaker_generators,
@@ -59,38 +61,6 @@ def _set_tf_session():
     config.gpu_options.allow_growth = True
     config.gpu_options.per_process_gpu_memory_fraction = 0.96
     set_session(tf.Session(config=config))
-
-
-def categorical_mean_squared_error(y_true, y_pred):
-    '''MSE for categorical variables.'''
-    return K.mean(
-        K.square(K.argmax(y_true, axis=-1) - K.argmax(y_pred, axis=-1)))
-
-
-def binary_accuracy(dist=0.99):
-    def _binary_accuracy(y_true, y_pred):
-        true = y_true == 1
-        pred = y_pred >= dist
-
-        return K.mean(K.equal(true, pred))
-
-    return _binary_accuracy
-
-
-def d_hinge_loss(p=5., n=1., dist=0.99):
-    bin_loss_fn = binary_accuracy(dist)
-
-    def _d_hinge_loss(y_true, y_pred):
-        match_loss = p * K.maximum(0., dist - y_pred)
-        mismatch_loss = n * K.maximum(0., y_pred)
-
-        vec_loss = K.mean(
-            y_true * match_loss + (1. - y_true) * mismatch_loss, axis=-1)
-        bin_loss = bin_loss_fn(y_true, y_pred)
-
-        return vec_loss + 0.2 * bin_loss
-
-    return _d_hinge_loss
 
 
 def sgd():
@@ -271,6 +241,73 @@ def train3_e2e(name,
 
     history_csv = os.path.join(
         chkd_dir, 'train3_softmax_history_%s.csv' % time.strftime('%d_%m_%Y'))
+    callbacks.extend([
+        ModelCheckpoint(
+            os.path.join(chkd_dir, 'chkpt.{epoch:05d}.va{val_loss:.5f}.hdf5'),
+            save_best_only=True,
+            mode='min',
+            monitor='val_loss'),
+        CSVLogger(os.path.join('.', history_csv))
+    ])
+
+    glog.info('Generator param:: %s',
+              pformat(
+                  dict(
+                      epochs=nb_epoch,
+                      sample_sizes=sample_sizes,
+                      batch_size=batch_size)))
+
+    model.fit_generator(
+        data_generators['train'],
+        sample_sizes['train'] / batch_size,
+        epochs=nb_epoch,
+        validation_data=data_generators['test'],
+        validation_steps=sample_sizes['test'] / batch_size,
+        workers=4,
+        callbacks=callbacks,
+        initial_epoch=model.epoch_num)
+
+
+def train4_e2e(name,
+               frame_length,
+               nb_epoch=1000,
+               batch_size=72,
+               early_stopping_patience=42,
+               chkd_dir=CHECKPT_DIR):
+
+    input_shape, h5s = _train3_setup(frame_length)
+
+    data_generators, sample_sizes, output_size = \
+        get_speaker_generators_e2e(
+            h5s, frame_length, batch_size, triplet_loss=True)
+
+    model = build_model7_e2e(input_shape, checkpoints_dir=chkd_dir)
+
+    with open('./%s/model_%s.json' % (chkd_dir, name), 'w') as f:
+        f.write(model.to_json())
+
+    optim = RMSprop()  # make_optimizer(**adam())
+
+    model.compile(
+        optimizer=optim,
+        # metrics=[
+        # binary_accuracy(),
+        # ],
+        loss={
+            'mergd': d_triplet_hinge_loss(2**7),
+        })
+
+    callbacks = [
+        # ReduceLROnPlateau(
+        # patience=early_stopping_patience / 2,
+        # cooldown=early_stopping_patience / 4,
+        # verbose=1),
+        EarlyStopping(patience=early_stopping_patience, verbose=1),
+    ]
+
+    history_csv = os.path.join(chkd_dir,
+                               'history_%s.csv' % time.strftime('%d_%m_%Y'))
+
     callbacks.extend([
         ModelCheckpoint(
             os.path.join(chkd_dir, 'chkpt.{epoch:05d}.va{val_loss:.5f}.hdf5'),
