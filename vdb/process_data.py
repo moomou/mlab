@@ -127,7 +127,7 @@ def vctk(mode='raw'):
     mode = getattr(DataMode, mode)
     fname = vctk_h5_fname(mode)
 
-    all_bg = _all_bg()
+    all_bg = None # _all_bg()
 
     speaker_stat = {}
     with h5py.File(fname, mode='a') as h5:

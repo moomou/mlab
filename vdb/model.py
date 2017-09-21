@@ -477,12 +477,19 @@ def build_model7_e2e(input_shape, checkpoints_dir=None):
     # siamese architecture
     siamese_lower = [
         Conv2D(
-            2**7, (3, 3),
+            2**5, 5,
             dilation_rate=(3, 1),
             padding='same',
             activation='relu'),
+        MaxPooling2D(2),
         Conv2D(
-            2**7, (1, 1),
+            2**6, 3,
+            dilation_rate=(3, 1),
+            padding='same',
+            activation='relu'),
+        MaxPooling2D(2),
+        Conv2D(
+            2**7, 3,
             dilation_rate=(3, 1),
             padding='same',
             activation='relu'),
