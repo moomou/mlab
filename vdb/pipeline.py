@@ -102,7 +102,7 @@ def get_speaker_generators_e2e(all_h5s,
                                frame_length,
                                batch_size,
                                enroll_k=3,
-                               train_size=640e3,
+                               train_size=20e3,
                                triplet_loss=False):
     all_speaker_files = defaultdict(list)
     train_speakers = None
@@ -156,7 +156,7 @@ def get_speaker_generators_e2e(all_h5s,
             batch_size=batch_size),
     }, {
         'train': int(train_size),
-        'test': train_size // 10,
+        'test': train_size // 5,
     }, total_speaker
 
 

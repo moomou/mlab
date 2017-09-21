@@ -18,15 +18,15 @@ def binary_accuracy(dist=0.99):
     return _binary_accuracy
 
 
-def d_hinge_loss(p=1., n=1., dist=0.99, margin=0.3):
+def d_hinge_loss(p=1., n=1., dist=0.95, margin=0.2 ** 0.5):
     # bin_loss_fn = binary_accuracy(dist)
 
     def _d_hinge_loss(y_true, y_pred):
         # scale dot product from [-1, 1] to [0, 1]
         scaled_y_pred = 0.5 * (y_pred + 1.0)
 
-        match_loss = p * (dist - scaled_y_pred)
-        mismatch_loss = K.maximum(0., margin - scaled_y_pred)
+        match_loss = K.maximum(0., dist - scaled_y_pred)
+        mismatch_loss = K.maximum(0., scaled_y_pred - margin)
 
         vec_loss = K.mean(
             y_true * match_loss + (1. - y_true) * mismatch_loss, axis=-1)
@@ -38,7 +38,7 @@ def d_hinge_loss(p=1., n=1., dist=0.99, margin=0.3):
     return _d_hinge_loss
 
 
-def d_logit_loss(p=1., n=1., dist=0.99, margin=0.3):
+def d_logit_loss(p=1., n=1., dist=0.99, margin=0.2 ** 0.5):
     def _d_logit_loss(y_true, y_pred):
         # convert from similarity to distance (from dot product to cosine distance)
         pred_dist = 1 - 0.5 * (y_pred + 1.0)
@@ -62,8 +62,8 @@ def d_triplet_hinge_loss(d, dist=0.95, margin=0.3):
         x_xn = K.batch_product(xs, xns)
         scaled_x_xn = 0.5 * (x_xn + 1.0)
 
-        match_loss = dist - scaled_x_xp
-        mismatch_loss = K.maximum(0., margin - scaled_x_xn)
+        match_loss = K.maximum(0., dist - scaled_x_xp)
+        mismatch_loss = K.maximum(0., scaled_x_xn - margin)
 
         vec_loss = K.mean(match_loss + mismatch_loss)
 

@@ -125,7 +125,7 @@ def _train3_setup(frame_length):
     for name in h5s:
         if name.find('train') == -1:
             name_h5_tuples.append((name, h5py.File(name,
-                                                   'r'))),  # driver='core')))
+                                                   'r', driver='core')))
         else:
             name_h5_tuples.append((name, h5py.File(name, 'r')))
 
@@ -244,7 +244,6 @@ def train3_e2e(name,
     callbacks.extend([
         ModelCheckpoint(
             os.path.join(chkd_dir, 'chkpt.{epoch:05d}.va{val_loss:.5f}.hdf5'),
-            save_best_only=True,
             mode='min',
             monitor='val_loss'),
         CSVLogger(os.path.join('.', history_csv))
@@ -311,7 +310,6 @@ def train4_e2e(name,
     callbacks.extend([
         ModelCheckpoint(
             os.path.join(chkd_dir, 'chkpt.{epoch:05d}.va{val_loss:.5f}.hdf5'),
-            save_best_only=True,
             mode='min',
             monitor='val_loss'),
         CSVLogger(os.path.join('.', history_csv))

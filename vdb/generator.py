@@ -271,6 +271,9 @@ def _speaker_pair_generator(files_by_speaker, all_speakers, enroll_k,
         spk_wavfiles = _random_speaker_wavfiles(h5_name, wav_names, enroll_k)
         all_positive_keys.append([(spk, [spk_wavfiles[0]]),
                                   (spk, spk_wavfiles[1:])])
+        spk_wavfiles = _random_speaker_wavfiles(h5_name, wav_names, enroll_k)
+        all_positive_keys.append([(spk, [spk_wavfiles[0]]),
+                                  (spk, spk_wavfiles[1:])])
 
         h5_name, wav_names = files_by_speaker[utter_spk]
         utter_spk_wavfiles = _random_speaker_wavfiles(h5_name, wav_names, 0)

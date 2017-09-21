@@ -53,7 +53,7 @@ def _load_checkoint(model, checkpoints_dir):
         checkpoints_dir)
 
     if last_checkpoint and last_checkpoint_path:
-        model.epoch_num = int(last_checkpoint[11:16]) + 1
+        model.epoch_num = int(last_checkpoint[6:11]) + 1
         model.load_weights(last_checkpoint_path, by_name=True)
 
         glog.info('Loaded model from epoch: %d' % model.epoch_num)
