@@ -557,5 +557,6 @@ if __name__ == '__main__':
     fire.Fire({
         'm': lambda: build_model5(input_shape, 100, kernel_sizes),
         '6e': lambda: build_model6_e2e((300, 40, 1), enroll_k=5),
+        '7e': lambda: build_model7_e2e((300, 40, 1)),
         'crf': compute_receptive_field,
     })
